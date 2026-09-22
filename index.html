@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#37003c">
-  <meta name="fpl-optimiser-build" content="0.21.1-cacheproof">
+  <meta name="fpl-optimiser-build" content="0.21.2-functional">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.v0211.css">
+  <link rel="stylesheet" href="styles.v0212.css">
   <title>FPL Optimiser</title>
 </head>
 <body>
@@ -35,19 +35,16 @@
       <span class="status-dot" id="side-team-dot"></span><span id="side-team-status">Team not connected</span>
       <small id="side-update">Waiting for sync</small>
     </div>
-    <div class="version">v0.21.1</div>
+    <div class="version">v0.21.2</div>
   </aside>
 
   <div class="workspace">
     <header class="topbar">
       <div class="mobile-brand"><span class="brand-crest small">F</span><strong>FPL <em>Optimiser</em></strong></div>
-      <nav class="top-tabs" aria-label="Quick navigation">
-        <button class="top-tab active" data-tab="dashboard">Dashboard</button>
-        <button class="top-tab" data-tab="team">My Team</button>
-        <button class="top-tab" data-tab="transfers">Transfers</button>
-        <button class="top-tab" data-tab="fixtures">Fixtures</button>
-        <button class="top-tab" data-tab="players">Players</button>
-      </nav>
+      <div class="top-context" aria-live="polite">
+        <strong id="top-context-title">Dashboard</strong>
+        <span id="top-context-sub">Your FPL command centre</span>
+      </div>
       <div class="top-actions">
         <div class="sync-pill"><span class="status-dot live"></span><span id="sync-text">Connecting…</span></div>
         <button id="avatar-button" class="avatar-button" aria-label="Open settings">SW</button>
@@ -223,6 +220,6 @@
   <section class="settings-section"><h3>Live data</h3><button id="refresh-data" class="btn ghost full">Refresh FPL Data</button><p id="technical-status" class="tiny">Connecting…</p></section>
 </aside>
 <div id="toast" class="toast hidden"></div>
-<script type="module" src="app.v0211.js"></script>
+<script type="module" src="app.v0212.js"></script>
 </body>
 </html>
