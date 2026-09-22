@@ -1,23 +1,21 @@
 import {FPLClient} from './src/data/fpl-client.js';
 import {normaliseBootstrap,normaliseFixtures} from './src/data/normalise.js';
 import {buildProjections} from './src/engine/projection.js';
-import {strategicWeeklyPlan} from './src/engine/transfer-planner.js';
+import {weeklyAdvisor,sensibleLineup} from './src/engine/weekly-advisor.js';
 import {optimiseLineup} from './src/engine/lineup.js';
 import {optimiseSquad} from './src/engine/squad-optimiser.js';
 import {tripleCaptainWindows,benchBoostWindows,chipWindowEnd} from './src/engine/chips.js';
 import {season2026_27} from './src/state/season-config.js';
 import {importManagerState} from './src/state/manager-import.js';
-import {LiveKnowledgeClient,ScopedResearchClient,applyV8KnowledgeRows} from './src/knowledge/v8-live.js';
-import {buildDecisionMaterialResearchPlan,blockingResearchTasks,horizonScore} from './src/research/decision-gate.js';
+import {ScopedResearchClient} from './src/knowledge/v8-live.js';
+import {horizonScore} from './src/research/decision-gate.js';
 
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const API_ORIGIN='https://fpl-optimiser-api.walkerthetexasranger17.workers.dev';
 const client=new FPLClient({base:`${API_ORIGIN}/api/fpl`});
-const knowledgeClient=new LiveKnowledgeClient({base:`${API_ORIGIN}/api/knowledge`});
 const RESEARCH_KEY_STORAGE='fpl-optimiser.research-session.v1';
 const ENTRY_STORAGE='fpl-optimiser.entry-id.v1';
-const MAX_RESEARCH_PASSES=2;
-let data=null,manager=null,lastPlan=null,lastResearch=null,lastGateClear=false,lastGate=null,busy=false,displayGW=null,playerFilter='ALL',builderMode='balanced',activeView='dashboard',fixtureIndex=new Map(),knowledgeRefreshPromise=null;
+let data=null,manager=null,lastPlan=null,busy=false,displayGW=null,playerFilter='ALL',builderMode='balanced',activeView='dashboard',fixtureIndex=new Map();
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtMoney=t=>`£${(Number(t||0)/10).toFixed(1)}m`;
@@ -71,7 +69,6 @@ function setBusy(on,title='Analysing your team…',copy='Checking live data and 
   const dock=$('#optimiser-dock');if(dock){dock.classList.toggle('hidden',!on);$('#dock-title').textContent=title;$('#dock-copy').textContent=copy;}
 }
 function squadValueTenths(){return (manager?.squad||[]).reduce((s,p)=>s+Number(p.priceTenths||0),0);}
-function rebuildResearchPlan(){if(!manager||!data)return null;data.researchPlan=buildDecisionMaterialResearchPlan(manager,data.players,data.currentGW,{horizon:5,clubLimit:season2026_27.clubLimit,maxResearch:6});lastGate=data.researchPlan;return data.researchPlan;}
 function rebindManagerSquad(){const byId=new Map(data.players.map(p=>[p.id,p]));manager.squad=manager.squad.map(old=>{const fresh=byId.get(old.id)||old;return {...fresh,purchasePriceTenths:old.purchasePriceTenths,sellingPriceTenths:old.sellingPriceTenths};});}
 
 function buildFixtureIndex(){
@@ -82,27 +79,15 @@ function buildFixtureIndex(){
     fixtureIndex.set(`${f.awayTeamId}:${f.gameweek}`,f);
   }
 }
-async function refreshLiveKnowledge(){
-  if(!data)return;
-  try{
-    const rows=await knowledgeClient.recent();
-    const merged=applyV8KnowledgeRows(data.players,rows);
-    data.players=buildProjections(merged.players,data.fixtures,data.currentGW,5);
-    data.liveKnowledge={applied:merged.applied,stale:merged.stale};
-    if(manager){rebindManagerSquad();renderAll();}
-    setTech(`Live FPL connected • GW${data.currentGW} • ${merged.applied} fresh player intelligence rows`);
-  }catch(e){data.liveKnowledge={applied:0,stale:0};setTech(`Live FPL connected • player intelligence refresh deferred`);}
-}
 async function loadLiveData({quiet=false}={}){
   try{
     if(!quiet)setConnection('Updating live Fantasy Premier League data…',true);
     const [b,f]=await Promise.all([client.bootstrap(),client.fixtures()]);
     const n=normaliseBootstrap(b);const current=n.events.find(e=>e.isCurrent)?.id||n.events.filter(e=>e.finished).at(-1)?.id||1;
     data={...n,fixtures:normaliseFixtures(f,n.teams),currentGW:current,liveKnowledge:{applied:0,stale:0}};displayGW=current+1;buildFixtureIndex();
-    data.players=buildProjections(data.players,data.fixtures,current,5);
-    setConnection('',false);setSync(`GW${current} • Live data ready`);setTech(`Live FPL connected • GW${current} • refreshing player intelligence in background`);
+    data.players=buildProjections(data.players,data.fixtures,current,Math.max(5,Math.min(14,19-current)));
+    setConnection('',false);setSync(`GW${current} • Live data ready`);setTech(`Live FPL connected • GW${current} • simple weekly advisor ready`);
     renderPublicData();
-    knowledgeRefreshPromise=refreshLiveKnowledge();
     return true;
   }catch(e){setConnection('Could not refresh live FPL data. Check your connection and try again.',true);setSync('Live data unavailable');setTech(e.message);return false;}
 }
@@ -115,7 +100,7 @@ async function importTeam(id,{quiet=false}={}){
     if(!quiet)setConnection('Syncing your FPL squad…',true);
     manager=await importManagerState({client,players:data.players,entryId:id,currentGW:data.currentGW,maxFreeTransfers:season2026_27.maxFreeTransfers??5});
     localStorage.setItem(ENTRY_STORAGE,String(id));$('#entry').value=String(id);$('#settings-entry').value=String(id);displayGW=nextGW();
-    lastPlan=null;lastGate=null;lastGateClear=false;showApp();renderDashboard();
+    lastPlan=null;showApp();renderDashboard();
     $('#side-team-dot').classList.add('live');$('#side-team-status').textContent='Team imported';setSync(`${manager.teamName} • live squad synced`);setTech(`Connected to ${manager.teamName} • 15-player squad synced`);setConnection('',false);
     return true;
   }catch(e){if(!quiet)showToast('Team import failed: '+e.message,true);setConnection('',false);return false;}
@@ -136,18 +121,32 @@ function playerShirt(p,extra=''){return `<div class="team-shirt ${extra}" style=
 function pitchPlayer(p,lineup,gw){const cap=p.id===lineup.captain?.id,vice=p.id===lineup.viceCaptain?.id;return `<div class="pitch-player">${playerShirt(p)}${cap?'<span class="armband">C</span>':vice?'<span class="armband vice">V</span>':''}<div class="player-tag"><strong>${esc(p.name)}</strong><span>${esc(fixtureLabel(p,gw))}</span><small>${fmtPts(p.projections?.[gw])} pts</small></div></div>`;}
 function renderPitchTo(target,lineup,gw){const root=$(target);if(!root||!lineup){if(root)root.innerHTML='<div class="pitch-placeholder">No lineup available</div>';return;}const by={GK:[],DEF:[],MID:[],FWD:[]};lineup.xi.forEach(p=>by[p.position].push(p));root.innerHTML=['GK','DEF','MID','FWD'].map(pos=>`<div class="pitch-row">${by[pos].map(p=>pitchPlayer(p,lineup,gw)).join('')}</div>`).join('');}
 function renderBenchTo(target,lineup,gw){const root=$(target);if(!root||!lineup)return;const bench=[lineup.benchGK,...lineup.bench].filter(Boolean);root.innerHTML=bench.map((p,i)=>`<div class="bench-player">${playerShirt(p,'tiny')}<strong>${esc(p.name)}</strong><span>${i===0?'GK':i} • ${fmtPts(p.projections?.[gw])} pts</span></div>`).join('');}
-function lineupFor(gw){if(!manager)return null;return optimiseLineup(manager.squad,p=>p.projections?.[gw]||0);}
+function lineupFor(gw){if(!manager)return null;return sensibleLineup(manager.squad,gw,{currentGW:data.currentGW});}
 function renderLineups(){if(!manager)return;const gw=displayGW||nextGW();const lineup=lineupFor(gw);$('#gw-label').textContent=`GW${gw}`;renderPitchTo('#pitch',lineup,gw);renderBenchTo('#bench',lineup,gw);renderPitchTo('#team-page-pitch',lineup,gw);renderBenchTo('#team-page-bench',lineup,gw);$('#formation-value').textContent=lineup.formation||'—';$('#captain-name').textContent=lineup.captain?.name||'—';$('#captain-meta').textContent=lineup.captain?`${lineup.captain.team} • ${fixtureLabel(lineup.captain,gw)}`:'—';$('#captain-points').textContent=lineup.captain?`${fmtPts(lineup.captain.projections?.[gw])} pts`:'—';$('#vice-name').textContent=lineup.viceCaptain?.name||'—';$('#vice-meta').textContent=lineup.viceCaptain?`${lineup.viceCaptain.team} • ${fixtureLabel(lineup.viceCaptain,gw)}`:'—';$('#vice-points').textContent=lineup.viceCaptain?`${fmtPts(lineup.viceCaptain.projections?.[gw])} pts`:'—';$('#captain-orb').textContent=initials(lineup.captain?.name);$('#vice-orb').textContent=initials(lineup.viceCaptain?.name);$('#team-list-inline').innerHTML=lineup.xi.map(p=>`<div class="inline-player">${playerShirt(p,'tiny')}<div><strong>${esc(p.name)}</strong><small>${esc(p.position)} • ${esc(fixtureLabel(p,gw))}</small></div><b class="proj-value">${fmtPts(p.projections?.[gw])}</b></div>`).join('');}
 
 function renderUpcomingFixtures(){if(!data)return;const gw=nextGW();const rows=data.fixtures.filter(f=>Number(f.gameweek)===gw).slice(0,6);$('#upcoming-fixtures').innerHTML=rows.length?rows.map(f=>`<div class="fixture-row"><div class="fixture-team"><span class="club-dot" style="${clubDotStyle(f.homeTeam)}"></span>${esc(f.homeShort)}</div><span class="fixture-vs">VS</span><div class="fixture-team away">${esc(f.awayShort)}<span class="club-dot" style="${clubDotStyle(f.awayTeam)}"></span></div><span class="fixture-time">${esc(shortKickoff(f.kickoff))}</span></div>`).join(''):'<div class="empty-compact">Fixtures not available yet.</div>';}
-function renderNextChecks(){if(!manager)return;const flagged=manager.squad.filter(p=>['d','i','u','s'].includes(String(p.status||'').toLowerCase())||(p.chanceNext!=null&&Number(p.chanceNext)<100));const movers=manager.squad.filter(p=>Math.abs(Number(p.costChangeEvent||0))>0);const gate=lastGate;const rows=[];if(flagged.length)rows.push({t:`Monitor ${flagged.slice(0,2).map(p=>p.name).join(' & ')} availability`,c:'warn'});if(gate?.tasks?.length)rows.push({t:`Refresh ${gate.tasks.length} decision-critical player${gate.tasks.length===1?'':'s'}`,c:'pending'});if(movers.length)rows.push({t:'Review price changes before the deadline',c:'warn'});rows.push({t:`Review GW${nextGW()+1} fixture swing`,c:''});$('#next-checks').innerHTML=rows.slice(0,4).map(r=>`<div class="check-row"><span class="check-bullet ${r.c}"></span><span>${esc(r.t)}</span></div>`).join('');}
+function renderNextChecks(){if(!manager)return;const flagged=manager.squad.filter(p=>['d','i','u','s'].includes(String(p.status||'').toLowerCase())||(p.chanceNext!=null&&Number(p.chanceNext)<100));const movers=manager.squad.filter(p=>Math.abs(Number(p.costChangeEvent||0))>0);const rows=[];if(flagged.length)rows.push({t:`Monitor ${flagged.slice(0,2).map(p=>p.name).join(' & ')} availability`,c:'warn'});if(movers.length)rows.push({t:'Review price changes before the deadline',c:'warn'});rows.push({t:`Review GW${nextGW()+1} fixture swing`,c:''});$('#next-checks').innerHTML=rows.slice(0,4).map(r=>`<div class="check-row"><span class="check-bullet ${r.c}"></span><span>${esc(r.t)}</span></div>`).join('');}
 
 function renderSquad(){if(!manager)return;const gw=displayGW||nextGW();const order={GK:1,DEF:2,MID:3,FWD:4};const rows=[...manager.squad].sort((a,b)=>order[a.position]-order[b.position]||(b.projections?.[gw]||0)-(a.projections?.[gw]||0));$('#squad-overview-count').textContent=`${rows.length} players`;$('#squad-list').innerHTML=rows.map(p=>`<div class="squad-row"><span class="position-badge">${p.position}</span><div><strong>${esc(p.name)}</strong><small>${esc(p.team)} • ${esc(fixtureLabel(p,gw))}</small></div><span class="price">${fmtMoney(p.sellingPriceTenths??p.priceTenths)}</span><span class="proj">${fmtPts(p.projections?.[gw])} pts</span></div>`).join('');}
 
 function moveMarkup(m){return `<div class="recommendation-row"><div class="recommendation-player">${playerShirt(m.out,'tiny')}<div><strong>${esc(m.out.name)}</strong><small>${esc(m.out.team)} • OUT</small></div></div><div class="move-arrow">→</div><div class="recommendation-player">${playerShirt(m.in,'tiny')}<div><strong>${esc(m.in.name)}</strong><small>${esc(m.in.team)} • IN</small></div></div></div>`;}
-function renderHomeRecommendation(){const root=$('#home-recommendations'),gain=$('#home-gain');gain.classList.add('hidden');if(!manager){root.innerHTML='<div class="empty-compact">Connect your team to begin.</div>';return;}if(!lastGateClear){const pending=lastGate?.tasks?.length||0;root.innerHTML=`<div class="empty-compact"><b>${pending?'Final checks still running':'Ready to optimise'}</b><br>${pending?`The app is verifying ${pending} player${pending===1?'':'s'} that could change the answer.`:'Press Optimise Team for the final transfer call.'}</div>`;return;}if(!lastPlan||lastPlan.action==='roll'||!lastPlan.bestPlan?.moves?.length){root.innerHTML='<div class="recommendation-row"><div class="recommendation-player"><div class="player-orb">✓</div><div><strong>Roll transfer</strong><small>Your squad is well positioned for the next gameweek.</small></div></div><div></div><div class="recommendation-player"><div><strong>Keep flexibility</strong><small>Bank the free transfer for next week.</small></div></div></div>';gain.innerHTML=`Projected strategy: <strong>${lastPlan?.nextFreeTransfers||Math.min(5,manager.freeTransfers+1)} FT next gameweek</strong>`;gain.classList.remove('hidden');return;}root.innerHTML=lastPlan.bestPlan.moves.map(moveMarkup).join('');gain.innerHTML=`Projected gain <strong>+${lastPlan.bestPlan.netGain.toFixed(1)} points</strong> over the next 5 gameweeks${lastPlan.bestPlan.hit?` • -${lastPlan.bestPlan.hit} hit`:''}`;gain.classList.remove('hidden');}
-function renderTransferIdeas(){const root=$('#transfer-ideas');if(!lastGateClear||!lastPlan?.alternatives?.length){root.innerHTML='<div class="empty-compact">Final transfer ideas appear after optimisation.</div>';return;}const alts=lastPlan.alternatives.filter(p=>p?.moves?.length).slice(0,3);root.innerHTML=alts.length?alts.map(p=>{const m=p.moves[0];return `<div class="compact-row"><div class="player-orb">${initials(m.in.name)}</div><div><strong>${esc(m.in.name)}</strong><span>${esc(m.in.team)} • ${esc(m.in.position)} • for ${esc(m.out.name)}</span></div><b>+${p.netGain.toFixed(1)}</b></div>`;}).join(''):'<div class="empty-compact">No transfer alternative beats the current squad.</div>';}
-function renderTransferPage(){if(!manager)return;const primary=$('#transfer-primary'),alts=$('#transfer-alternatives');$('#transfer-position').innerHTML=`<div class="detail-row"><span>Free transfers</span><strong>${manager.freeTransfers}</strong></div><div class="detail-row"><span>Bank</span><strong>${fmtMoney(manager.bankTenths)}</strong></div><div class="detail-row"><span>Squad value</span><strong>${fmtMoney(manager.currentValueTenths||squadValueTenths())}</strong></div><div class="detail-row"><span>Hit cost</span><strong>-4 pts per extra transfer</strong></div>`;if(!lastGateClear){primary.innerHTML='<div class="eyebrow">NOT FINAL YET</div><h2>Transfer recommendation is being held back</h2><p class="empty-compact">The optimiser will only show a specific move once the decision-critical player checks are complete.</p>';alts.innerHTML='<div class="empty-compact">Alternatives will appear with the final result.</div>';return;}if(lastPlan.action==='roll'||!lastPlan.bestPlan?.moves?.length){primary.innerHTML='<div class="eyebrow">BEST MOVE</div><h2>Roll your transfer</h2><p class="empty-compact">Keep the current squad and carry the free transfer forward.</p>';alts.innerHTML='<div class="empty-compact">No alternative transfer currently beats rolling.</div>';return;}const bp=lastPlan.bestPlan;primary.innerHTML=`<div class="eyebrow">TOP TRANSFER RECOMMENDATION</div><div class="transfer-main-grid">${bp.moves.slice(0,1).map(m=>`<div class="transfer-player-card">${playerShirt(m.out)}<strong>${esc(m.out.name)}</strong><span>${esc(m.out.team)} • ${fmtMoney(m.out.sellingPriceTenths??m.out.priceTenths)}</span></div><div class="transfer-arrow-big">→</div><div class="transfer-player-card">${playerShirt(m.in)}<strong>${esc(m.in.name)}</strong><span>${esc(m.in.team)} • ${fmtMoney(m.in.priceTenths)}</span></div>`).join('')}</div><div class="transfer-gain-line"><div class="gain-stat"><strong>+${bp.netGain.toFixed(1)}</strong><span>projected pts / 5 GWs</span></div><div class="gain-stat"><strong>${bp.hit?`-${bp.hit}`:'0'}</strong><span>hit points</span></div></div>`;alts.innerHTML=lastPlan.alternatives.filter(p=>p.moves?.length).slice(1,5).map(p=>{const m=p.moves[0];return `<div class="transfer-alt"><div><strong>${esc(m.out.name)}</strong><small> OUT</small></div><span>→</span><div><strong>${esc(m.in.name)}</strong><small> IN</small></div><b class="proj-value">+${p.netGain.toFixed(1)}</b></div>`;}).join('')||'<div class="empty-compact">No close alternatives.</div>';}
+function renderHomeRecommendation(){
+  const root=$('#home-recommendations'),gain=$('#home-gain');
+  gain.classList.add('hidden');
+  if(!manager){root.innerHTML='<div class="empty-compact">Connect your team to begin.</div>';return;}
+  if(!lastPlan){root.innerHTML='<div class="empty-compact"><b>Ready to analyse</b><br>Press Optimise Team for this week’s recommendation.</div>';return;}
+  if(lastPlan.action==='roll'||!lastPlan.bestPlan?.moves?.length){
+    root.innerHTML=`<div class="recommendation-row"><div class="recommendation-player"><div class="player-orb">✓</div><div><strong>Roll transfer</strong><small>${esc(lastPlan.reason||'No transfer clears the value threshold this week.')}</small></div></div><div></div><div class="recommendation-player"><div><strong>Keep flexibility</strong><small>Bank the free transfer for next week.</small></div></div></div>`;
+    gain.innerHTML=`Projected strategy: <strong>${lastPlan.nextFreeTransfers||Math.min(5,manager.freeTransfers+1)} FT next gameweek</strong>`;
+    gain.classList.remove('hidden');
+    return;
+  }
+  root.innerHTML=lastPlan.bestPlan.moves.map(moveMarkup).join('')+`<div class="decision-reason">${esc(lastPlan.reason||'')}</div>`;
+  gain.innerHTML=`Short-run value <strong>+${lastPlan.bestPlan.netGain.toFixed(1)} points</strong> versus holding over 5 gameweeks${lastPlan.bestPlan.hit?` • -${lastPlan.bestPlan.hit} hit`:''}`;
+  gain.classList.remove('hidden');
+}
+function renderTransferIdeas(){const root=$('#transfer-ideas');if(!lastPlan?.alternatives?.length){root.innerHTML='<div class="empty-compact">Alternatives appear after analysis.</div>';return;}const alts=lastPlan.alternatives.filter(p=>p?.moves?.length).slice(0,3);root.innerHTML=alts.length?alts.map(p=>{const m=p.moves[0];return `<div class="compact-row"><div class="player-orb">${initials(m.in.name)}</div><div><strong>${esc(m.in.name)}</strong><span>${esc(m.in.team)} • ${esc(m.in.position)} • for ${esc(m.out.name)}</span></div><b>+${p.netGain.toFixed(1)}</b></div>`;}).join(''):'<div class="empty-compact">No transfer alternative beats the current squad.</div>';}
+function renderTransferPage(){if(!manager)return;const primary=$('#transfer-primary'),alts=$('#transfer-alternatives');$('#transfer-position').innerHTML=`<div class="detail-row"><span>Free transfers</span><strong>${manager.freeTransfers}</strong></div><div class="detail-row"><span>Bank</span><strong>${fmtMoney(manager.bankTenths)}</strong></div><div class="detail-row"><span>Squad value</span><strong>${fmtMoney(manager.currentValueTenths||squadValueTenths())}</strong></div><div class="detail-row"><span>Hit cost</span><strong>-4 pts per extra transfer</strong></div>`;if(!lastPlan){primary.innerHTML='<div class="eyebrow">READY</div><h2>Analyse this gameweek</h2><p class="empty-compact">Press Optimise Team for a simple roll / transfer / hit decision.</p>';alts.innerHTML='<div class="empty-compact">Alternatives appear after analysis.</div>';return;}if(lastPlan.action==='roll'||!lastPlan.bestPlan?.moves?.length){primary.innerHTML='<div class="eyebrow">BEST MOVE</div><h2>Roll your transfer</h2><p class="empty-compact">Keep the current squad and carry the free transfer forward.</p>';alts.innerHTML='<div class="empty-compact">No alternative transfer currently beats rolling.</div>';return;}const bp=lastPlan.bestPlan;primary.innerHTML=`<div class="eyebrow">TOP TRANSFER RECOMMENDATION</div><div class="transfer-main-grid">${bp.moves.slice(0,1).map(m=>`<div class="transfer-player-card">${playerShirt(m.out)}<strong>${esc(m.out.name)}</strong><span>${esc(m.out.team)} • ${fmtMoney(m.out.sellingPriceTenths??m.out.priceTenths)}</span></div><div class="transfer-arrow-big">→</div><div class="transfer-player-card">${playerShirt(m.in)}<strong>${esc(m.in.name)}</strong><span>${esc(m.in.team)} • ${fmtMoney(m.in.priceTenths)}</span></div>`).join('')}</div><div class="transfer-gain-line"><div class="gain-stat"><strong>+${bp.netGain.toFixed(1)}</strong><span>value vs hold / 5 GWs</span></div><div class="gain-stat"><strong>${bp.hit?`-${bp.hit}`:'0'}</strong><span>hit points</span></div></div>`;alts.innerHTML=lastPlan.alternatives.filter(p=>p.moves?.length).slice(1,5).map(p=>{const m=p.moves[0];return `<div class="transfer-alt"><div><strong>${esc(m.out.name)}</strong><small> OUT</small></div><span>→</span><div><strong>${esc(m.in.name)}</strong><small> IN</small></div><b class="proj-value">+${p.netGain.toFixed(1)}</b></div>`;}).join('')||'<div class="empty-compact">No close alternatives.</div>';}
 
 function renderPlannerAndFixtures(){if(!data)return;const gws=Array.from({length:5},(_,i)=>nextGW()+i);$('#planner-range').textContent=`GW${gws[0]} – GW${gws.at(-1)}`;if(manager){const featured=[...manager.squad].sort((a,b)=>horizonScore(b,gws)-horizonScore(a,gws)).slice(0,8);$('#planner-table').innerHTML=`<div class="planner-grid"><div class="planner-cell head">Player</div>${gws.map(g=>`<div class="planner-cell head">GW${g}</div>`).join('')}${featured.map(p=>`<div class="planner-cell player">${esc(p.name)}</div>${gws.map(g=>`<div class="planner-cell">${esc(fixtureLabel(p,g))}<br><span class="fdr f${fixtureDifficulty(p,g)}">${fixtureDifficulty(p,g)}</span> <b>${fmtPts(p.projections?.[g])}</b></div>`).join('')}`).join('')}</div>`;const lines=gws.map(g=>{const l=lineupFor(g);return `<div class="long-term-card"><b>GW${g}</b> • ${l.formation} • Captain ${esc(l.captain?.name||'—')} • ${fmtPts(l.value+(l.captain?.projections?.[g]||0))} projected pts</div>`;}).join('');$('#long-term-view').innerHTML=`Your current squad is mapped across the next five gameweeks. Use fixture swings and transfer flexibility rather than chasing one-week scores.${lines}`;}else{$('#planner-table').innerHTML='<div class="empty-compact">Connect your team for personalised planning.</div>';$('#long-term-view').innerHTML='Connect a team to see your five-gameweek outlook.';}
  const rows=data.fixtures.filter(f=>gws.includes(Number(f.gameweek))).slice(0,30);$('#fixture-browser').innerHTML=rows.map(f=>`<div class="fixture-row"><div class="fixture-team"><span class="club-dot" style="${clubDotStyle(f.homeTeam)}"></span>${esc(f.homeShort)}</div><span class="fixture-vs">GW${f.gameweek}</span><div class="fixture-team away">${esc(f.awayShort)}<span class="club-dot" style="${clubDotStyle(f.awayTeam)}"></span></div><span class="fixture-time">${esc(shortKickoff(f.kickoff))}</span></div>`).join('');}
@@ -157,55 +156,27 @@ function renderStats(){if(!manager)return;const value=manager.currentValueTenths
 function renderTools(){renderChips();}
 function renderDeadlineAndChecks(){const ev=eventFor(nextGW());const deadline=formatDeadline(ev?.deadline);$('#sync-text').textContent=manager?`GW${nextGW()} • Team imported • Live data ready`:`GW${data?.currentGW||'—'} • Live data ready`;renderNextChecks();const node=$('#long-term-view');if(node&&manager&&!node.innerHTML)node.innerHTML=`Next deadline: ${deadline}`;}
 
-function renderDashboard(){if(!data||!manager)return;renderManagerHeader();renderGameweekCard();renderChips();renderLineups();renderHomeRecommendation();renderTransferIdeas();renderUpcomingFixtures();renderNextChecks();}
+function renderAdvisorChipNote(){const node=$('#long-term-view');if(!node||!manager)return;if(!lastPlan?.chips?.length){node.innerHTML=`Next deadline: ${formatDeadline(eventFor(nextGW())?.deadline)}`;return;}const tc=lastPlan.chips.find(x=>x.chip==='Triple Captain');const wc=lastPlan.chips.find(x=>x.chip==='Wildcard');const parts=[];if(tc)parts.push(`<b>${esc(tc.chip)}:</b> ${esc(tc.action)}${tc.gw?` • GW${tc.gw}${tc.player?` ${esc(tc.player.name)}`:''}`:''}<br>${esc(tc.reason)}`);if(wc)parts.push(`<b>${esc(wc.chip)}:</b> ${esc(wc.action)}<br>${esc(wc.reason)}`);node.innerHTML=parts.join('<br><br>');}
+
+function renderDashboard(){if(!data||!manager)return;renderManagerHeader();renderGameweekCard();renderChips();renderLineups();renderHomeRecommendation();renderTransferIdeas();renderUpcomingFixtures();renderNextChecks();renderAdvisorChipNote();}
 function renderAll(){if(!data)return;renderPublicData();if(!manager)return;renderDashboard();if(activeView==='team')renderSquad();else if(activeView==='transfers')renderTransferPage();else if(activeView==='fixtures')renderPlannerAndFixtures();else if(activeView==='stats')renderStats();else if(activeView==='players')renderPlayers();else if(activeView==='tools')renderTools();}
 
 const yieldToUI=()=>new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,0)));
-let plannerSeq=0;
-async function calculateStrategicPlan(){
-  const payload={state:manager,players:data.players,nextGW:nextGW(),horizon:5,config:season2026_27};
-  if(typeof Worker==='undefined')return strategicWeeklyPlan(payload.state,payload.players,payload.nextGW,payload.horizon,{config:payload.config,beamWidth:120,maxMovesPerGW:2,minGain:.75});
-  const id=++plannerSeq;
-  return await new Promise((resolve,reject)=>{
-    const worker=new Worker('./planner-worker.v0240.js',{type:'module'});
-    const timer=setTimeout(()=>{worker.terminate();reject(new Error('Planner timed out'));},25000);
-    worker.onmessage=e=>{if(e.data?.id!==id)return;clearTimeout(timer);worker.terminate();if(e.data.ok){setTech(`Strategic optimiser completed in ${e.data.elapsedMs} ms`);resolve(e.data.plan);}else reject(new Error(e.data.error||'Planner failed'));};
-    worker.onerror=e=>{clearTimeout(timer);worker.terminate();reject(new Error(e.message||'Planner worker failed'));};
-    worker.postMessage({id,...payload});
-  }).catch(()=>strategicWeeklyPlan(payload.state,payload.players,payload.nextGW,payload.horizon,{config:payload.config,beamWidth:100,maxMovesPerGW:2,minGain:.75}));
+async function calculateWeeklyAdvice(){
+  return weeklyAdvisor(manager,data.players,nextGW(),{currentGW:data.currentGW,horizon:5,clubLimit:season2026_27.clubLimit,hitPoints:season2026_27.transferHitPoints,firstSetLastGW:season2026_27.chips.firstSetLastGameweek});
 }
-async function renderDecision({gateClear,gate}){lastPlan=await calculateStrategicPlan();lastGateClear=gateClear;lastGate=gate||lastGate;renderAll();}
-async function runResearchPass(plan){const rc=scopedResearchClient();if(!rc)throw new Error('Player intelligence is not connected on this browser');const result=await rc.execute({teamId:manager.entryId,season:seasonKey(),tasks:plan.tasks});const merged=applyV8KnowledgeRows(data.players,result.refreshed||[]);data.players=buildProjections(merged.players,data.fixtures,data.currentGW,5);rebindManagerSquad();lastResearch=result;return result;}
 async function optimiseTeam(){
   if(busy)return;
   if(!data||!manager){showToast('Connect your FPL team first',true);return;}
-  setBusy(true,'Analysing your squad…','Building the shortlist before any player research starts.');
+  setBusy(true,'Analysing this gameweek…','Comparing hold, sensible free transfers, your best XI, captaincy and chip timing.');
   try{
-    if(knowledgeRefreshPromise){await Promise.race([knowledgeRefreshPromise,new Promise(r=>setTimeout(r,2500))]);knowledgeRefreshPromise=null;}
     await yieldToUI();
-    let gate=rebuildResearchPlan(),pass=0;
-    const attempted=new Set();
-    while(gate.tasks.length&&pass<MAX_RESEARCH_PASSES){
-      const pending=gate.tasks.filter(t=>!attempted.has(t.playerId));
-      if(!pending.length)break;
-      pass++;
-      pending.forEach(t=>attempted.add(t.playerId));
-      setBusy(true,pass===1?'Checking the players that can change your decision…':'Finishing the last important player checks…',`${pending.length} player${pending.length===1?'':'s'} • pass ${pass} of ${MAX_RESEARCH_PASSES}`);
-      await yieldToUI();
-      await runResearchPass({...gate,tasks:pending});
-      await yieldToUI();
-      gate=rebuildResearchPlan();
-    }
-    const blocking=blockingResearchTasks(gate);
-    const clear=blocking.length===0;
-    setBusy(true,'Calculating your best five-gameweek plan…','Comparing rolling, transfers and hits while keeping the app responsive.');
-    await yieldToUI();
-    await renderDecision({gateClear:clear,gate});
-    if(clear&&gate.tasks.length)showToast(`Plan ready • ${gate.tasks.length} low-impact uncertainty check${gate.tasks.length===1?'':'s'} did not change the decision`);
-    else if(clear)showToast('Your gameweek plan is ready');
-    else showToast(`${blocking.length} important player check${blocking.length===1?'':'s'} remain unresolved — transfer advice held back`);
+    lastPlan=await calculateWeeklyAdvice();
+    renderAll();
+    setTech(`Weekly advisor ready • ${lastPlan.diagnostics.evaluatedSingles} single-transfer options checked`);
+    showToast(lastPlan.action==='roll'?'Recommendation: roll the transfer':'Recommendation ready');
   }catch(e){
-    const gate=rebuildResearchPlan();await renderDecision({gateClear:blockingResearchTasks(gate).length===0,gate});showToast(e.message,true);setTech('Optimisation issue: '+e.message);
+    showToast('Could not finish analysis: '+e.message,true);setTech('Weekly advisor issue: '+e.message);
   }finally{setBusy(false);}
 }
 
@@ -241,4 +212,4 @@ $('#player-search').addEventListener('input',renderPlayers);$$('#position-filter
 $$('[data-builder-mode]').forEach(b=>b.onclick=()=>{builderMode=b.dataset.builderMode;$$('[data-builder-mode]').forEach(x=>x.classList.toggle('active',x===b));});$('#build-new-squad').onclick=buildNewSquad;
 
 bootstrapApp();
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js?v=0240').catch(()=>{});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js?v=0260').catch(()=>{});
