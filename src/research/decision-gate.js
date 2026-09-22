@@ -109,12 +109,18 @@ export function buildDecisionMaterialResearchPlan(state,players,currentGW,{
 
   const candidates=candidateUniverse(state,players,gws,{clubLimit});
   const maxMarket=Math.max(1,...candidates.map(x=>x.marketScore));
-  for(const row of candidates){
+  // Research only candidates that are genuinely close to becoming a transfer decision.
+  // Market popularity can help rank a candidate but can no longer make a weak/negative
+  // preliminary swap "material" by itself. This prevents endless waves of speculative
+  // research after the first six players have been refreshed.
+  const frontier=candidates
+    .filter(row=>row.gain>=Math.max(.5,candidateGainFloor))
+    .sort((a,b)=>b.gain-a.gain || b.marketScore-a.marketScore)
+    .slice(0,Math.max(4,maxResearch));
+  for(const row of frontier){
     const need=researchNeed(row.player,currentGW,{candidate:true});
     if(!need.needed)continue;
-    const strongMarket=row.marketScore/maxMarket>=.72;
-    if(row.gain<candidateGainFloor&&!strongMarket)continue;
-    const priority=90+clamp(row.gain,-3,8)*10+(row.marketScore/maxMarket)*25+Math.min(20,projectionUncertainty(row.player,gws)*3)+(need.flagged?20:0);
+    const priority=90+clamp(row.gain,0,8)*10+(row.marketScore/maxMarket)*12+Math.min(20,projectionUncertainty(row.player,gws)*3)+(need.flagged?20:0);
     tasks.push({
       playerId:row.player.id,name:row.player.name,team:row.player.team,role:'candidate',priority,
       reasons:need.reasons,
@@ -134,7 +140,7 @@ export function buildDecisionMaterialResearchPlan(state,players,currentGW,{
     deferred:Math.max(0,dedup.size-selected.length),
     maxResearch,
     preliminaryLineup:{xiIds:lineup.xi.map(p=>p.id),benchIds:lineup.bench.map(p=>p.id),captainId:lineup.captain?.id??null},
-    policy:{researchWholeDatabase:false,ownedSparseOrFlagged:true,candidateShortlistOnly:true,freshV8Reused:true,establishedHealthyPlayersSkipHistoricalRefresh:true}
+    policy:{researchWholeDatabase:false,ownedSparseOrFlagged:true,candidateShortlistOnly:true,marketSignalsNeverMakeWeakCandidatesMaterial:true,freshV8Reused:true,establishedHealthyPlayersSkipHistoricalRefresh:true}
   };
 }
 

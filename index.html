@@ -1,1 +1,147 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101827"><link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles.css"><title>FPL Optimiser</title></head><body><header><b>FPL OPTIMISER</b><span id="status">Loading…</span></header><main><section class="hero"><p class="eyebrow">DECISION ENGINE</p><h1>Your next FPL move, calculated.</h1><p>Live data • 5-GW planning • Captaincy • Chips • Transfer banking</p></section><section class="card setup"><h2>My Team</h2><p>Enter your FPL Team ID to import your public squad, purchase/selling prices, bank, transfer history and chips.</p><div class="row"><input id="entry" inputmode="numeric" placeholder="FPL Team ID"><button id="import">Import team</button></div><div class="row"><label>Free transfers <input id="ft" type="number" min="0" max="5" value="1"></label><label>Bank (£m) <input id="bank" type="number" min="0" step="0.1" value="0"></label><button id="optimise">Optimise</button></div></section><section class="card setup"><h2>Protected research access</h2><p class="muted">Paste the revocable research-only key once. This is not your Cloudflare ADMIN_TOKEN. It is restricted to your FPL Team ID, season and a limited research allowance.</p><div class="row"><input id="research-session" type="password" autocomplete="off" placeholder="Scoped Research Access Key"><button id="save-research">Save access</button><button id="clear-research" class="secondary">Clear</button></div></section><section id="result" class="grid"></section><section class="card"><h2>How it decides</h2><p id="model">Waiting for live FPL data.</p></section></main><script type="module" src="app.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#081b2b">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+  <title>FPL Optimiser</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <button class="brand" data-tab="home" aria-label="FPL Optimiser home">
+        <span class="brand-mark">F</span>
+        <span><strong>FPL</strong> <b>OPTIMISER</b></span>
+      </button>
+      <div class="topbar-center" id="team-heading">Your FPL Assistant</div>
+      <button id="settings-open" class="icon-button" aria-label="Settings" title="Settings">⚙</button>
+    </header>
+
+    <div id="connection-banner" class="connection-banner hidden"></div>
+
+    <main>
+      <section id="onboarding" class="onboarding hidden">
+        <div class="welcome-card">
+          <span class="kicker">ONE-STOP FPL ASSISTANT</span>
+          <h1>Make your team stronger every gameweek.</h1>
+          <p>Connect your FPL team once. After that the optimiser keeps your squad, budget, transfers, lineup, captaincy and chip plan together in one place.</p>
+          <div class="connect-row">
+            <input id="entry" inputmode="numeric" placeholder="Your FPL Team ID" aria-label="FPL Team ID">
+            <button id="import" class="primary">Connect my team</button>
+          </div>
+          <button id="gw1-mode" class="text-button">No team yet? Build a new-season squad</button>
+        </div>
+      </section>
+
+      <section id="home-view" class="view hidden" data-view="home">
+        <div class="gameweek-hero">
+          <div>
+            <span class="kicker" id="hero-kicker">GAMEWEEK PLAN</span>
+            <h1 id="hero-title">Your team is ready.</h1>
+            <p id="hero-copy">One tap checks your squad, transfer options, captaincy and upcoming fixtures.</p>
+          </div>
+          <button id="optimise" class="optimise-button">
+            <span class="optimise-icon">✦</span>
+            <span><small>ONE TAP</small>Optimise My Team</span>
+          </button>
+        </div>
+
+        <div class="summary-strip">
+          <div class="summary-item"><span>Free transfers</span><strong id="summary-ft">—</strong></div>
+          <div class="summary-item"><span>Bank</span><strong id="summary-bank">—</strong></div>
+          <div class="summary-item"><span>Squad value</span><strong id="summary-value">—</strong></div>
+          <div class="summary-item"><span>Chips</span><strong id="summary-chips">—</strong></div>
+        </div>
+
+        <div id="analysis-progress" class="analysis-progress hidden">
+          <div class="spinner"></div>
+          <div><strong id="analysis-title">Analysing your team…</strong><span id="analysis-copy">Checking the latest player data and your best options.</span></div>
+        </div>
+
+        <section id="decision-panel" class="decision-panel empty-state">
+          <div class="decision-main">
+            <span class="section-label">RECOMMENDED MOVE</span>
+            <h2 id="decision-title">Tap “Optimise My Team” for your GW plan</h2>
+            <p id="decision-copy">We’ll check whether to transfer, roll, change your XI, switch captain or hold a chip.</p>
+            <div id="transfer-list" class="transfer-list"></div>
+          </div>
+          <div class="decision-score">
+            <span id="decision-badge" class="decision-badge">READY</span>
+            <strong id="gain-value">—</strong>
+            <span id="gain-label">5-GW gain</span>
+          </div>
+        </section>
+
+        <div class="dashboard-grid">
+          <section class="panel captain-panel">
+            <div class="panel-heading"><div><span class="section-label">CAPTAINCY</span><h3>Your armband</h3></div><span id="captain-status" class="pill">Waiting</span></div>
+            <div class="captain-choice">
+              <div class="captain-avatar">C</div>
+              <div><strong id="captain-name">—</strong><span id="captain-points">Run the optimiser first</span></div>
+            </div>
+            <div class="vice-row"><span>Vice captain</span><strong id="vice-name">—</strong></div>
+          </section>
+
+          <section class="panel chip-panel">
+            <div class="panel-heading"><div><span class="section-label">CHIP WATCH</span><h3>Best opportunity</h3></div></div>
+            <div class="chip-focus"><strong id="chip-title">No scan yet</strong><span id="chip-copy">Chip timing updates with every optimisation.</span></div>
+            <div id="chip-badges" class="chip-badges"></div>
+          </section>
+        </div>
+
+        <section class="panel lineup-panel">
+          <div class="panel-heading">
+            <div><span class="section-label">BEST XI</span><h3 id="lineup-title">Starting lineup</h3></div>
+            <div id="lineup-total" class="lineup-total">— pts</div>
+          </div>
+          <div id="pitch" class="pitch"><div class="pitch-placeholder">Optimise your team to build the best XI</div></div>
+          <div><span class="bench-label">BENCH ORDER</span><div id="bench" class="bench"></div></div>
+        </section>
+      </section>
+
+      <section id="squad-view" class="view hidden" data-view="squad">
+        <div class="page-heading"><span class="kicker">MY TEAM</span><h1>Your 15-player squad</h1><p>Current price, selling value and projected next-gameweek output.</p></div>
+        <div id="squad-list" class="player-list"></div>
+      </section>
+
+      <section id="transfers-view" class="view hidden" data-view="transfers">
+        <div class="page-heading"><span class="kicker">TRANSFER CENTRE</span><h1>Improve the squad, not just one player.</h1><p>The optimiser weighs your bank, selling prices, free transfers and the next five gameweeks.</p></div>
+        <div id="transfer-detail" class="panel"><p class="muted">Run Optimise My Team to generate your transfer plan.</p></div>
+      </section>
+
+      <section id="planner-view" class="view hidden" data-view="planner">
+        <div class="page-heading"><span class="kicker">5-GW PLANNER</span><h1>Look beyond this weekend.</h1><p>Upcoming lineup strength, captaincy and chip opportunities.</p></div>
+        <div id="planner-list" class="planner-list"></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Primary navigation">
+      <button class="nav-item active" data-tab="home"><span>⌂</span>Home</button>
+      <button class="nav-item" data-tab="squad"><span>♟</span>Squad</button>
+      <button class="nav-item" data-tab="transfers"><span>⇄</span>Transfers</button>
+      <button class="nav-item" data-tab="planner"><span>▦</span>Planner</button>
+    </nav>
+  </div>
+
+  <div id="settings-backdrop" class="drawer-backdrop hidden"></div>
+  <aside id="settings-drawer" class="settings-drawer" aria-hidden="true">
+    <div class="drawer-head"><div><span class="section-label">SETTINGS</span><h2>App connection</h2></div><button id="settings-close" class="icon-button">✕</button></div>
+    <p class="muted">These connection details stay out of the main app once set up.</p>
+    <label class="field-label">FPL Team ID<input id="settings-entry" inputmode="numeric" placeholder="Team ID"></label>
+    <button id="settings-import" class="primary full">Reconnect team</button>
+    <div class="setting-divider"></div>
+    <div class="setting-status"><span>Player research</span><strong id="research-status">Not connected</strong></div>
+    <label class="field-label">Research access key<input id="research-session" type="password" autocomplete="off" placeholder="rs_…"></label>
+    <div class="settings-actions"><button id="save-research" class="secondary">Save access</button><button id="clear-research" class="ghost">Clear</button></div>
+    <p class="tiny muted">This key is stored only in this browser. The normal app hides it after setup.</p>
+    <div class="setting-divider"></div>
+    <button id="refresh-data" class="ghost full">Refresh live FPL data</button>
+    <p id="technical-status" class="tiny muted">Connecting…</p>
+  </aside>
+
+  <div id="toast" class="toast hidden"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
