@@ -27,7 +27,7 @@ export function currentEvidenceProfile(player,currentGW){
   return {games,minutes,starts,minutesPerFixture:mpg,startRate,established,sparse};
 }
 
-export function researchNeed(player,currentGW,{candidate=false}={}){
+export function researchNeed(player,currentGW,{candidate=false,gws=[]}={}){
   if(player?.v8KnowledgeFresh===true)return {needed:false,reasons:[],profile:currentEvidenceProfile(player,currentGW)};
   const profile=currentEvidenceProfile(player,currentGW);
   const chance=player?.chanceNext==null?null:n(player.chanceNext,100);
@@ -36,7 +36,7 @@ export function researchNeed(player,currentGW,{candidate=false}={}){
   const reasons=[];
   if(flagged)reasons.push('availability-uncertain');
   if(profile.sparse)reasons.push('sparse-current-evidence');
-  if(candidate&&projectionUncertainty(player,[])>4.5)reasons.push('high-projection-uncertainty');
+  if(candidate&&projectionUncertainty(player,gws)>4.5)reasons.push('high-projection-uncertainty');
   if(stale&&(flagged||profile.sparse||candidate))reasons.push('stale-v8-knowledge');
   // Established, healthy players with enough current PL evidence do not need historical research.
   const needed=reasons.length>0 && !(profile.established&&!flagged&&!candidate&&reasons.every(r=>r==='stale-v8-knowledge'));
@@ -60,20 +60,33 @@ function feasibleSwap(candidate,state,old,clubLimit){
   return after<=clubLimit;
 }
 
-function candidateUniverse(state,players,gws,{clubLimit=3,projectedPerPosition=8,marketPerPosition=5}={}){
+function squadHorizonScore(squad,gws,{discount=.9}={}){
+  return (gws||[]).reduce((sum,gw,i)=>{
+    const l=optimiseLineup(squad,p=>n(p?.projections?.[gw]));
+    return sum+Math.pow(discount,i)*(l.value+n(l.captain?.projections?.[gw]));
+  },0);
+}
+
+function candidateUniverse(state,players,gws,{clubLimit=3,projectedPerPosition=8,marketPerPosition=5,discount=.9}={}){
   const owned=new Set((state.squad||[]).map(p=>p.id));
   const out=[];
+  const baseline=squadHorizonScore(state.squad,gws,{discount});
+  const playerScores=new Map((players||[]).map(p=>[p.id,horizonScore(p,gws,{discount})]));
   for(const pos of POSITIONS){
     const pool=(players||[]).filter(p=>p.position===pos&&!owned.has(p.id));
-    const projected=[...pool].sort((a,b)=>horizonScore(b,gws)-horizonScore(a,gws)).slice(0,projectedPerPosition);
+    const projected=[...pool].sort((a,b)=>n(playerScores.get(b.id))-n(playerScores.get(a.id))).slice(0,projectedPerPosition);
     const market=[...pool].sort((a,b)=>marketScore(b)-marketScore(a)).slice(0,marketPerPosition);
     const union=new Map([...projected,...market].map(p=>[p.id,p]));
     for(const p of union.values()){
-      const possible=(state.squad||[]).filter(old=>old.position===pos&&feasibleSwap(p,state,old,clubLimit));
-      if(!possible.length)continue;
-      const weakest=possible.sort((a,b)=>horizonScore(a,gws)-horizonScore(b,gws))[0];
-      const gain=horizonScore(p,gws)-horizonScore(weakest,gws);
-      out.push({player:p,swapOut:weakest,gain,marketScore:marketScore(p),projectedScore:horizonScore(p,gws)});
+      let bestSwap=null;
+      for(const old of state.squad||[]){
+        if(old.position!==pos||!feasibleSwap(p,state,old,clubLimit))continue;
+        const squad=state.squad.map(x=>x.id===old.id?p:x);
+        const gain=squadHorizonScore(squad,gws,{discount})-baseline;
+        if(!bestSwap||gain>bestSwap.gain)bestSwap={old,gain};
+      }
+      if(!bestSwap)continue;
+      out.push({player:p,swapOut:bestSwap.old,gain:bestSwap.gain,marketScore:marketScore(p),projectedScore:n(playerScores.get(p.id))});
     }
   }
   return out;
@@ -94,7 +107,7 @@ export function buildDecisionMaterialResearchPlan(state,players,currentGW,{
   const bench=new Set(lineup.bench.map(p=>p.id));
 
   for(const p of state.squad||[]){
-    const need=researchNeed(p,currentGW,{candidate:false});
+    const need=researchNeed(p,currentGW,{candidate:false,gws});
     if(!need.needed)continue;
     const importance=starters.has(p.id)?55:bench.has(p.id)?25:15;
     const priority=140+importance+Math.min(30,projectionUncertainty(p,gws)*4)+(need.flagged?35:0);
@@ -107,7 +120,7 @@ export function buildDecisionMaterialResearchPlan(state,players,currentGW,{
     });
   }
 
-  const candidates=candidateUniverse(state,players,gws,{clubLimit});
+  const candidates=candidateUniverse(state,players,gws,{clubLimit,discount});
   const maxMarket=Math.max(1,...candidates.map(x=>x.marketScore));
   // Research only candidates that are genuinely close to becoming a transfer decision.
   // Market popularity can help rank a candidate but can no longer make a weak/negative
@@ -118,7 +131,7 @@ export function buildDecisionMaterialResearchPlan(state,players,currentGW,{
     .sort((a,b)=>b.gain-a.gain || b.marketScore-a.marketScore)
     .slice(0,Math.max(4,maxResearch));
   for(const row of frontier){
-    const need=researchNeed(row.player,currentGW,{candidate:true});
+    const need=researchNeed(row.player,currentGW,{candidate:true,gws});
     if(!need.needed)continue;
     const priority=90+clamp(row.gain,0,8)*10+(row.marketScore/maxMarket)*12+Math.min(20,projectionUncertainty(row.player,gws)*3)+(need.flagged?20:0);
     tasks.push({
@@ -142,6 +155,15 @@ export function buildDecisionMaterialResearchPlan(state,players,currentGW,{
     preliminaryLineup:{xiIds:lineup.xi.map(p=>p.id),benchIds:lineup.bench.map(p=>p.id),captainId:lineup.captain?.id??null},
     policy:{researchWholeDatabase:false,ownedSparseOrFlagged:true,candidateShortlistOnly:true,marketSignalsNeverMakeWeakCandidatesMaterial:true,freshV8Reused:true,establishedHealthyPlayersSkipHistoricalRefresh:true}
   };
+}
+
+
+export function blockingResearchTasks(plan,{candidateGainThreshold=2.5}={}){
+  return (plan?.tasks||[]).filter(task=>{
+    if(task.role==='owned')return Boolean(task.context?.starter)||task.reasons?.includes('availability-uncertain');
+    if(task.role==='candidate')return n(task.context?.preliminaryGain)>=candidateGainThreshold||task.reasons?.includes('availability-uncertain');
+    return true;
+  });
 }
 
 export async function executeDecisionMaterialResearch(plan,{

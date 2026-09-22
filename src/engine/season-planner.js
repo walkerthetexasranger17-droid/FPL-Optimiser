@@ -26,7 +26,7 @@ export function planTransferPath(state,players,startGW,{horizon=5,beamWidth=160,
   const gws=Array.from({length:horizon},(_,i)=>startGW+i);let beam=[{squad:state.squad,bankTenths:state.bankTenths,freeTransfers:state.freeTransfers,total:0,path:[]}];
   for(let i=0;i<gws.length;i++){const gw=gws[i],remaining=gws.slice(i);const next=[];for(const node of beam){for(const cand of transferSuccessors(node,players,remaining,{clubLimit:config?.clubLimit??3,maxMovesPerGW,candidatesPerPos:18,discount,hitPoints:config?.transferHitPoints??4})){const ftNext=nextFreeTransfers(node.freeTransfers,cand.movesThisGW.length,config?.maxFreeTransfers??5);const pts=scoreGW(cand.squad,gw)-cand.hit;next.push({squad:cand.squad,bankTenths:cand.bankTenths,freeTransfers:ftNext,total:node.total+Math.pow(discount,i)*pts,path:[...node.path,{gw,moves:cand.movesThisGW,hit:cand.hit,expected:pts,freeTransfersAfter:ftNext,bankTenths:cand.bankTenths}]});}}
     const seen=new Map();for(const n of next.sort((a,b)=>b.total-a.total)){const k=`${sig(n.squad)}:${n.freeTransfers}:${n.bankTenths}`;if(!seen.has(k))seen.set(k,n);}beam=[...seen.values()].slice(0,beamWidth);
-  }return {gws,best:beam[0],alternatives:beam.slice(1,5)};
+  }return {gws,best:beam[0],alternatives:beam.slice(1,5),finalists:beam.slice(0,80)};
 }
 
 export function wildcardWindows(state,players,currentGW,{horizon=8,config,discount=.9}={}){
