@@ -1,14 +1,14 @@
-import {FPLClient} from './src/data/fpl-client.js';
-import {normaliseBootstrap,normaliseFixtures} from './src/data/normalise.js';
-import {buildProjections} from './src/engine/projection.js';
-import {weeklyAdvisor,sensibleLineup} from './src/engine/weekly-advisor.js';
-import {optimiseLineup} from './src/engine/lineup.js';
-import {optimiseSquad} from './src/engine/squad-optimiser.js';
-import {tripleCaptainWindows,benchBoostWindows,chipWindowEnd} from './src/engine/chips.js';
-import {season2026_27} from './src/state/season-config.js';
-import {importManagerState} from './src/state/manager-import.js';
-import {ScopedResearchClient} from './src/knowledge/v8-live.js';
-import {horizonScore} from './src/research/decision-gate.js';
+import {FPLClient} from './modules.v0270/data/fpl-client.js';
+import {normaliseBootstrap,normaliseFixtures} from './modules.v0270/data/normalise.js';
+import {buildProjections} from './modules.v0270/engine/projection.js';
+import {weeklyAdvisor,sensibleLineup} from './modules.v0270/engine/weekly-advisor.js';
+import {optimiseLineup} from './modules.v0270/engine/lineup.js';
+import {optimiseSquad} from './modules.v0270/engine/squad-optimiser.js';
+import {tripleCaptainWindows,benchBoostWindows,chipWindowEnd} from './modules.v0270/engine/chips.js';
+import {season2026_27} from './modules.v0270/state/season-config.js';
+import {importManagerState} from './modules.v0270/state/manager-import.js';
+import {ScopedResearchClient} from './modules.v0270/knowledge/v8-live.js';
+import {horizonScore} from './modules.v0270/research/decision-gate.js';
 
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const API_ORIGIN='https://fpl-optimiser-api.walkerthetexasranger17.workers.dev';
@@ -86,7 +86,7 @@ async function loadLiveData({quiet=false}={}){
     const n=normaliseBootstrap(b);const current=n.events.find(e=>e.isCurrent)?.id||n.events.filter(e=>e.finished).at(-1)?.id||1;
     data={...n,fixtures:normaliseFixtures(f,n.teams),currentGW:current,liveKnowledge:{applied:0,stale:0}};displayGW=current+1;buildFixtureIndex();
     data.players=buildProjections(data.players,data.fixtures,current,Math.max(5,Math.min(14,19-current)));
-    setConnection('',false);setSync(`GW${current} • Live data ready`);setTech(`Live FPL connected • GW${current} • simple weekly advisor ready`);
+    setConnection('',false);setSync(`GW${current} • Live data ready`);setTech(`Live FPL connected • GW${current} • weekly assistant v0.27 ready`);
     renderPublicData();
     return true;
   }catch(e){setConnection('Could not refresh live FPL data. Check your connection and try again.',true);setSync('Live data unavailable');setTech(e.message);return false;}
@@ -142,7 +142,7 @@ function renderHomeRecommendation(){
     return;
   }
   root.innerHTML=lastPlan.bestPlan.moves.map(moveMarkup).join('')+`<div class="decision-reason">${esc(lastPlan.reason||'')}</div>`;
-  gain.innerHTML=`Short-run value <strong>+${lastPlan.bestPlan.netGain.toFixed(1)} points</strong> versus holding over 5 gameweeks${lastPlan.bestPlan.hit?` • -${lastPlan.bestPlan.hit} hit`:''}`;
+  gain.innerHTML=`Estimated edge <strong>+${lastPlan.bestPlan.nextGWGain.toFixed(1)} this GW</strong> • +${lastPlan.bestPlan.directGain.toFixed(1)} across the 5-GW player comparison${lastPlan.bestPlan.hit?` • -${lastPlan.bestPlan.hit} hit`:''}`;
   gain.classList.remove('hidden');
 }
 function renderTransferIdeas(){const root=$('#transfer-ideas');if(!lastPlan?.alternatives?.length){root.innerHTML='<div class="empty-compact">Alternatives appear after analysis.</div>';return;}const alts=lastPlan.alternatives.filter(p=>p?.moves?.length).slice(0,3);root.innerHTML=alts.length?alts.map(p=>{const m=p.moves[0];return `<div class="compact-row"><div class="player-orb">${initials(m.in.name)}</div><div><strong>${esc(m.in.name)}</strong><span>${esc(m.in.team)} • ${esc(m.in.position)} • for ${esc(m.out.name)}</span></div><b>+${p.netGain.toFixed(1)}</b></div>`;}).join(''):'<div class="empty-compact">No transfer alternative beats the current squad.</div>';}
@@ -212,4 +212,4 @@ $('#player-search').addEventListener('input',renderPlayers);$$('#position-filter
 $$('[data-builder-mode]').forEach(b=>b.onclick=()=>{builderMode=b.dataset.builderMode;$$('[data-builder-mode]').forEach(x=>x.classList.toggle('active',x===b));});$('#build-new-squad').onclick=buildNewSquad;
 
 bootstrapApp();
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js?v=0260').catch(()=>{});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js?v=0270').catch(()=>{});

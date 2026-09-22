@@ -1,10 +1,10 @@
 {
   "name": "FPL Optimiser",
   "short_name": "FPL Optimiser",
-  "start_url": "./index.html?v=0211",
+  "start_url": "./index.html?v=0270",
   "display": "standalone",
   "background_color": "#230028",
   "theme_color": "#37003c",
   "description": "Fantasy Premier League squad, transfer, lineup, captaincy, fixture and chip assistant.",
-  "id": "./?v=0211"
+  "id": "./?v=0270"
 }
