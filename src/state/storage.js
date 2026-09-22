@@ -1,0 +1,1 @@
+const KEY='fpl-optimiser-manager-v1';export const saveManager=s=>localStorage.setItem(KEY,JSON.stringify(s));export const loadManager=()=>{try{return JSON.parse(localStorage.getItem(KEY))}catch{return null}};export const clearManager=()=>localStorage.removeItem(KEY);

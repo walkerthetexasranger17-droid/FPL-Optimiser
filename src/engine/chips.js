@@ -1,0 +1,4 @@
+import {optimiseLineup} from './lineup.js';
+export function tripleCaptainWindows(squad,startGW,endGW){const rows=[];for(let gw=startGW;gw<=endGW;gw++){const l=optimiseLineup(squad,p=>p.projections?.[gw]||0);const x=l.captain?.projections?.[gw]||0;rows.push({gw,player:l.captain,incrementalExpected:x});}return rows.sort((a,b)=>b.incrementalExpected-a.incrementalExpected);}
+export function benchBoostWindows(squad,startGW,endGW){const rows=[];for(let gw=startGW;gw<=endGW;gw++){const l=optimiseLineup(squad,p=>p.projections?.[gw]||0);const bench=[l.benchGK,...l.bench].filter(Boolean);rows.push({gw,incrementalExpected:bench.reduce((s,p)=>s+(p.projections?.[gw]||0),0),bench});}return rows.sort((a,b)=>b.incrementalExpected-a.incrementalExpected);}
+export function chipWindowEnd(currentGW,config){return currentGW<=config.chips.firstSetLastGameweek?config.chips.firstSetLastGameweek:38;}
