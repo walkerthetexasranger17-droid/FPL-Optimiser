@@ -1,14 +1,14 @@
-import {FPLClient} from './src/data/fpl-client.js';
-import {normaliseBootstrap,normaliseFixtures} from './src/data/normalise.js';
-import {buildProjections} from './src/engine/projection.js';
-import {weeklyPlan} from './src/engine/transfer-planner.js';
-import {optimiseLineup} from './src/engine/lineup.js';
-import {optimiseSquad} from './src/engine/squad-optimiser.js';
-import {tripleCaptainWindows,benchBoostWindows,chipWindowEnd} from './src/engine/chips.js';
-import {season2026_27} from './src/state/season-config.js';
-import {importManagerState} from './src/state/manager-import.js';
-import {LiveKnowledgeClient,ScopedResearchClient,applyV8KnowledgeRows} from './src/knowledge/v8-live.js';
-import {buildDecisionMaterialResearchPlan,horizonScore} from './src/research/decision-gate.js';
+import {FPLClient} from '../src/data/fpl-client.js';
+import {normaliseBootstrap,normaliseFixtures} from '../src/data/normalise.js';
+import {buildProjections} from '../src/engine/projection.js';
+import {weeklyPlan} from '../src/engine/transfer-planner.js';
+import {optimiseLineup} from '../src/engine/lineup.js';
+import {optimiseSquad} from '../src/engine/squad-optimiser.js';
+import {tripleCaptainWindows,benchBoostWindows,chipWindowEnd} from '../src/engine/chips.js';
+import {season2026_27} from '../src/state/season-config.js';
+import {importManagerState} from '../src/state/manager-import.js';
+import {LiveKnowledgeClient,ScopedResearchClient,applyV8KnowledgeRows} from '../src/knowledge/v8-live.js';
+import {buildDecisionMaterialResearchPlan,horizonScore} from '../src/research/decision-gate.js';
 
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const API_ORIGIN='https://fpl-optimiser-api.walkerthetexasranger17.workers.dev';
@@ -160,4 +160,4 @@ $('#player-search').addEventListener('input',renderPlayers);$$('#position-filter
 $$('[data-builder-mode]').forEach(b=>b.onclick=()=>{builderMode=b.dataset.builderMode;$$('[data-builder-mode]').forEach(x=>x.classList.toggle('active',x===b));});$('#build-new-squad').onclick=buildNewSquad;
 
 bootstrapApp();
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js?v=0211').catch(()=>{});
