@@ -1,5 +1,5 @@
-const C='fpl-opt-v230-strategic';
-const CORE=['./','./index.html','./styles.v0230.css','./app.v0230.js','./planner-worker.v0230.js','./manifest.webmanifest'];
+const C='fpl-opt-v240-cinematic-safe';
+const CORE=['./','./index.html','./styles.v0240.css','./app.v0240.js','./planner-worker.v0240.js','./manifest.webmanifest'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(CORE)))});
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([self.clients.claim(),caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('fpl-opt-')&&k!==C).map(k=>caches.delete(k))))])));
 self.addEventListener('fetch',e=>{

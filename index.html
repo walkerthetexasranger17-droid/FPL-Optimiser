@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#37003c">
-  <meta name="fpl-optimiser-build" content="0.23.0-performance-strategy">
+  <meta name="fpl-optimiser-build" content="0.24.0-performance-decision-safety">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.v0230.css">
+  <link rel="stylesheet" href="styles.v0240.css">
   <title>FPL Optimiser</title>
 </head>
 <body>
@@ -35,7 +35,7 @@
       <span class="status-dot" id="side-team-dot"></span><span id="side-team-status">Team not connected</span>
       <small id="side-update">Waiting for sync</small>
     </div>
-    <div class="version">v0.23.0</div>
+    <div class="version">v0.24.0</div>
   </aside>
 
   <div class="workspace">
@@ -54,6 +54,11 @@
     <div id="connection-banner" class="connection-banner hidden"></div>
 
     <main class="content">
+      <section id="startup-cinematic" class="startup-cinematic">
+        <div class="cinematic-ball">F</div>
+        <div class="cinematic-copy"><span class="eyebrow">FPL OPTIMISER</span><h2 id="startup-title">Syncing live FPL data…</h2><p id="startup-copy">Getting your gameweek ready. You can still use the navigation while this finishes.</p></div>
+        <div class="cinematic-scan"><i></i></div>
+      </section>
       <section id="onboarding" class="onboarding hidden">
         <div class="setup-card">
           <div class="setup-badge">ONE-TIME SETUP</div>
@@ -203,6 +208,10 @@
     </main>
   </div>
 
+  <div id="optimiser-dock" class="optimiser-dock hidden" aria-live="polite">
+    <div class="dock-ball">F</div><div><strong id="dock-title">Optimising your team…</strong><span id="dock-copy">Comparing the moves that can improve your next five gameweeks.</span></div><div class="dock-track"><i></i></div>
+  </div>
+
   <nav class="mobile-nav" aria-label="Mobile navigation">
     <button class="mobile-nav-item active" data-tab="dashboard"><span>⌂</span>Home</button>
     <button class="mobile-nav-item" data-tab="team"><span>♟</span>Team</button>
@@ -220,6 +229,6 @@
   <section class="settings-section"><h3>Live data</h3><button id="refresh-data" class="btn ghost full">Refresh FPL Data</button><p id="technical-status" class="tiny">Connecting…</p></section>
 </aside>
 <div id="toast" class="toast hidden"></div>
-<script type="module" src="app.v0230.js"></script>
+<script type="module" src="app.v0240.js"></script>
 </body>
 </html>

@@ -94,11 +94,20 @@ export function strategicWeeklyPlan(state,allPlayers,nextGW,horizon=5,{config={c
   const rollSim=simulations.find(x=>!x.first.moves.length)||simulations[0];
   const actions=simulations.map(x=>({
     moves:x.first.moves||[],hit:x.first.hit||0,nextFT:x.path[0]?.freeTransfersAfter??Math.min(maxFT,state.freeTransfers+1),bankTenths:x.path[0]?.bankTenths??state.bankTenths,
-    strategicTotal:x.total,netGain:x.total-rollSim.total,path:x.path,squad:x.squad
+    strategicTotal:x.total,netGain:x.total-rollSim.total,directNetGain:Number(x.first.netGain||0),path:x.path,squad:x.squad
   })).sort((a,b)=>b.strategicTotal-a.strategicTotal);
-  const rawBest=actions[0]||{moves:[],hit:0,nextFT:Math.min(maxFT,state.freeTransfers+1),netGain:0,path:rollSim.path,squad:state.squad};
-  const action=rawBest.moves.length&&rawBest.netGain>=minGain?'transfer':'roll';
+  const rawBest=actions[0]||{moves:[],hit:0,nextFT:Math.min(maxFT,state.freeTransfers+1),netGain:0,directNetGain:0,path:rollSim.path,squad:state.squad};
+  // A transfer must be good in its own right, not only because two greedy future paths diverged.
+  // Hits are held to a higher bar. This prevents spectacular-looking but unstable +40/+50
+  // recommendations caused by projection noise or future-path compounding.
+  const directFloor=rawBest.hit>0?4:Math.max(.75,minGain);
+  const pathGap=rawBest.netGain-rawBest.directNetGain;
+  const stablePath=pathGap<=12 || rawBest.directNetGain>=rawBest.netGain*.55;
+  const plausibleGain=rawBest.netGain<=30 || rawBest.directNetGain>=18;
+  const transferAccepted=rawBest.moves.length&&rawBest.netGain>=minGain&&rawBest.directNetGain>=directFloor&&stablePath&&plausibleGain;
+  const action=transferAccepted?'transfer':'roll';
   const chosen=action==='transfer'?rawBest:(actions.find(x=>!x.moves.length)||rawBest);
   const alternatives=actions.filter(x=>actionKey(x.moves)!==actionKey(chosen.moves)).slice(0,5);
-  return {action,bestPlan:chosen,alternatives,lineup,nextFreeTransfers:chosen.nextFT,gws,mode:'strategic-fast',rollBaseline:rollSim.total};
+  const decisionSafety={accepted:transferAccepted,directFloor,pathGap,stablePath,plausibleGain,rejectedAction:transferAccepted?null:(rawBest.moves.length?actionKey(rawBest.moves):null),rejectedStrategicGain:transferAccepted?null:rawBest.netGain,rejectedDirectGain:transferAccepted?null:rawBest.directNetGain};
+  return {action,bestPlan:chosen,alternatives,lineup,nextFreeTransfers:chosen.nextFT,gws,mode:'strategic-fast-safe',rollBaseline:rollSim.total,decisionSafety};
 }

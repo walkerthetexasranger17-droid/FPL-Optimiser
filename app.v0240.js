@@ -49,6 +49,8 @@ function setTech(message){$('#technical-status').textContent=message;}
 function setConnection(text,show=true){const b=$('#connection-banner');b.textContent=text;b.classList.toggle('hidden',!show);}
 function setSync(text){$('#sync-text').textContent=text;$('#side-update').textContent=text;}
 function setResearchStatus(text){$('#research-status').textContent=text;}
+function showStartup(title='Syncing live FPL data…',copy='Getting your gameweek ready.'){const n=$('#startup-cinematic');if(!n)return;n.classList.remove('hidden');$('#startup-title').textContent=title;$('#startup-copy').textContent=copy;}
+function hideStartup(){const n=$('#startup-cinematic');if(n)n.classList.add('hidden');}
 function showApp(){ $('#onboarding').classList.add('hidden'); if(manager)setView('dashboard'); else setView('tools',{allowNoManager:true}); }
 function showOnboarding(){ $('#onboarding').classList.remove('hidden'); $$('.view').forEach(v=>v.classList.add('hidden')); }
 function setView(name,{allowNoManager=false}={}){
@@ -64,7 +66,9 @@ function setView(name,{allowNoManager=false}={}){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 function setBusy(on,title='Analysing your team…',copy='Checking live data and the few players that could change your decision.'){
-  busy=on;$$('#optimise, .page-optimise').forEach(b=>b.disabled=on);$('#analysis-progress').classList.toggle('hidden',!on);$('#analysis-title').textContent=title;$('#analysis-copy').textContent=copy;
+  busy=on;$$('#optimise, .page-optimise').forEach(b=>b.disabled=on);
+  const inline=$('#analysis-progress');if(inline){inline.classList.toggle('hidden',!on);$('#analysis-title').textContent=title;$('#analysis-copy').textContent=copy;}
+  const dock=$('#optimiser-dock');if(dock){dock.classList.toggle('hidden',!on);$('#dock-title').textContent=title;$('#dock-copy').textContent=copy;}
 }
 function squadValueTenths(){return (manager?.squad||[]).reduce((s,p)=>s+Number(p.priceTenths||0),0);}
 function rebuildResearchPlan(){if(!manager||!data)return null;data.researchPlan=buildDecisionMaterialResearchPlan(manager,data.players,data.currentGW,{horizon:5,clubLimit:season2026_27.clubLimit,maxResearch:6});lastGate=data.researchPlan;return data.researchPlan;}
@@ -163,7 +167,7 @@ async function calculateStrategicPlan(){
   if(typeof Worker==='undefined')return strategicWeeklyPlan(payload.state,payload.players,payload.nextGW,payload.horizon,{config:payload.config,beamWidth:120,maxMovesPerGW:2,minGain:.75});
   const id=++plannerSeq;
   return await new Promise((resolve,reject)=>{
-    const worker=new Worker('./planner-worker.v0230.js',{type:'module'});
+    const worker=new Worker('./planner-worker.v0240.js',{type:'module'});
     const timer=setTimeout(()=>{worker.terminate();reject(new Error('Planner timed out'));},25000);
     worker.onmessage=e=>{if(e.data?.id!==id)return;clearTimeout(timer);worker.terminate();if(e.data.ok){setTech(`Strategic optimiser completed in ${e.data.elapsedMs} ms`);resolve(e.data.plan);}else reject(new Error(e.data.error||'Planner failed'));};
     worker.onerror=e=>{clearTimeout(timer);worker.terminate();reject(new Error(e.message||'Planner worker failed'));};
@@ -212,7 +216,15 @@ function closeSettings(){$('#settings-drawer').classList.remove('open');$('#sett
 
 function buildNewSquad(){if(!data)return;const gws=Array.from({length:5},(_,i)=>nextGW()+i);const score=p=>{const h=horizonScore(p,gws);if(builderMode==='aggressive')return h+Number(p.form||0)*1.5+Number(p.xGI||0)*2;if(builderMode==='safe')return h+Math.min(90,Number(p.minutes||0)/Math.max(1,data.currentGW))*0.15+Number(p.selectedBy||0)*.08;return h;};try{const result=optimiseSquad(data.players,{budgetTenths:1000,clubLimit:season2026_27.clubLimit||3,score,maxPerPosition:50,beamWidth:15000});const lineup=optimiseLineup(result.players,p=>p.projections?.[nextGW()]||0);$('#builder-output').innerHTML=`<div class="builder-summary"><b>${fmtMoney(result.costTenths)}</b> spent • ${fmtMoney(1000-result.costTenths)} bank • Best XI ${fmtPts(lineup.value+(lineup.captain?.projections?.[nextGW()]||0))} projected GW${nextGW()} pts</div><div class="builder-list">${result.players.map(p=>`<div class="builder-player"><b>${esc(p.name)}</b><br>${p.position} • ${esc(p.teamShort)} • ${fmtMoney(p.priceTenths)}</div>`).join('')}</div>`;}catch(e){showToast('Could not build a legal squad: '+e.message,true);}}
 
-async function bootstrapApp(){const ok=await loadLiveData();if(!ok){showOnboarding();return;}let id=localStorage.getItem(ENTRY_STORAGE);if(!id&&researchKey())id=await deriveTeamFromSavedResearch();else if(researchKey())deriveTeamFromSavedResearch();if(id){const imported=await importTeam(id,{quiet:true});if(!imported)showOnboarding();}else showOnboarding();}
+async function bootstrapApp(){
+  showStartup('Syncing live FPL data…','Loading prices, fixtures and the current gameweek. The app shell stays responsive while this runs.');
+  const ok=await loadLiveData();
+  if(!ok){hideStartup();showOnboarding();return;}
+  let id=localStorage.getItem(ENTRY_STORAGE);
+  if(!id&&researchKey())id=await deriveTeamFromSavedResearch();else if(researchKey())deriveTeamFromSavedResearch();
+  if(id){showStartup('Rebuilding your FPL squad…','Restoring your 15 players, bank, free transfers and purchase prices.');const imported=await importTeam(id,{quiet:true});hideStartup();if(!imported)showOnboarding();}
+  else{hideStartup();showOnboarding();}
+}
 
 $$('[data-tab]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.tab)));
 $('#import').onclick=()=>importTeam($('#entry').value.trim());
@@ -229,4 +241,4 @@ $('#player-search').addEventListener('input',renderPlayers);$$('#position-filter
 $$('[data-builder-mode]').forEach(b=>b.onclick=()=>{builderMode=b.dataset.builderMode;$$('[data-builder-mode]').forEach(x=>x.classList.toggle('active',x===b));});$('#build-new-squad').onclick=buildNewSquad;
 
 bootstrapApp();
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js?v=0230').catch(()=>{});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js?v=0240').catch(()=>{});
