@@ -1,15 +1,10 @@
-FPL Optimiser v0.20.0 — GitHub Pages site bundle
+FPL Optimiser v0.21.0 — GitHub Pages bundle
 
-Replace the contents of the GitHub Pages repository with the CONTENTS of this folder.
-The root must contain index.html, app.js, styles.css, sw.js, manifest.webmanifest and the src folder.
+Replace the existing files in the FPL-Optimiser repository with the CONTENTS of this folder.
+Keep index.html at the repository root.
+No Cloudflare Worker changes are required for this release.
 
-The app points to the live Cloudflare Worker automatically.
-No ADMIN_TOKEN or research key is included in this ZIP.
+This build uses the live Worker at:
+https://fpl-optimiser-api.walkerthetexasranger17.workers.dev
 
-v0.20.0 changes the normal experience to a one-stop dashboard:
-- saved team/research connection is recovered automatically where possible;
-- technical research controls are hidden under Settings;
-- one Optimise My Team button drives the main workflow;
-- transfer advice is withheld if important player checks are still unresolved.
-
-After pushing to GitHub Pages, refresh the site once. The v0.20 service worker uses a new cache key and network-first updates.
+The existing Team ID and scoped research key stay in browser localStorage on the same GitHub Pages origin.

@@ -192,6 +192,9 @@ export async function importManagerState({ client, players, entryId, currentGW, 
     maxFreeTransfers
   });
 
+  const currentRows = history.current || [];
+  const latest = currentRows.find(r => n(r.event) === currentGW) || currentRows.at(-1) || {};
+
   return {
     entryId: String(entryId),
     teamName: entry.name || '',
@@ -202,6 +205,14 @@ export async function importManagerState({ client, players, entryId, currentGW, 
     freeTransfers,
     chips: history.chips || [],
     chipAvailability: chipAvailabilityForGW(history.chips || [], currentGW + 1),
+    summaryOverallPoints: n(entry.summary_overall_points, n(latest.total_points)),
+    summaryOverallRank: n(entry.summary_overall_rank, n(latest.overall_rank)),
+    summaryEventPoints: n(entry.summary_event_points, n(latest.points)),
+    summaryEventRank: n(entry.summary_event_rank, n(latest.rank)),
+    currentValueTenths: n(entry.last_deadline_value, n(latest.value)),
+    totalTransfers: n(entry.last_deadline_total_transfers, (transfers || []).length),
+    historyCurrent: currentRows,
+    pastSeasons: history.past || [],
     warnings,
     provenance: {
       squad: 'Public FPL starting picks + permanent transfer history (Free Hit transfers excluded)',

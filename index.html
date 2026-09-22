@@ -3,145 +3,225 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#081b2b">
+  <meta name="theme-color" content="#37003c">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <title>FPL Optimiser</title>
 </head>
 <body>
-  <div class="app-shell">
+<div class="app-shell">
+  <aside class="sidebar" aria-label="Primary navigation">
+    <button class="brand" data-tab="dashboard" aria-label="FPL Optimiser home">
+      <span class="brand-crest">F</span>
+      <span class="brand-copy"><b>FPL</b><em>Optimiser</em></span>
+    </button>
+    <nav class="side-nav">
+      <button class="side-item active" data-tab="dashboard"><span class="nav-glyph">⌂</span><span>Dashboard</span></button>
+      <button class="side-item" data-tab="team"><span class="nav-glyph">♟</span><span>My Team</span></button>
+      <button class="side-item" data-tab="transfers"><span class="nav-glyph">⇄</span><span>Transfers</span></button>
+      <button class="side-item" data-tab="fixtures"><span class="nav-glyph">▦</span><span>Fixtures</span></button>
+      <button class="side-item" data-tab="players"><span class="nav-glyph">◎</span><span>Players</span></button>
+      <button class="side-item" data-tab="stats"><span class="nav-glyph">▥</span><span>Statistics</span></button>
+      <button class="side-item" data-tab="tools"><span class="nav-glyph">✦</span><span>Tools</span></button>
+    </nav>
+    <div class="sidebar-spacer"></div>
+    <button class="side-item" id="settings-open"><span class="nav-glyph">⚙</span><span>Settings</span></button>
+    <div class="sidebar-status">
+      <span class="status-dot live"></span><span>Live FPL data</span>
+      <span class="status-dot" id="side-team-dot"></span><span id="side-team-status">Team not connected</span>
+      <small id="side-update">Waiting for sync</small>
+    </div>
+    <div class="version">v0.21.0</div>
+  </aside>
+
+  <div class="workspace">
     <header class="topbar">
-      <button class="brand" data-tab="home" aria-label="FPL Optimiser home">
-        <span class="brand-mark">F</span>
-        <span><strong>FPL</strong> <b>OPTIMISER</b></span>
-      </button>
-      <div class="topbar-center" id="team-heading">Your FPL Assistant</div>
-      <button id="settings-open" class="icon-button" aria-label="Settings" title="Settings">⚙</button>
+      <div class="mobile-brand"><span class="brand-crest small">F</span><strong>FPL <em>Optimiser</em></strong></div>
+      <nav class="top-tabs" aria-label="Quick navigation">
+        <button class="top-tab active" data-tab="dashboard">Dashboard</button>
+        <button class="top-tab" data-tab="team">My Team</button>
+        <button class="top-tab" data-tab="transfers">Transfers</button>
+        <button class="top-tab" data-tab="fixtures">Fixtures</button>
+        <button class="top-tab" data-tab="players">Players</button>
+      </nav>
+      <div class="top-actions">
+        <div class="sync-pill"><span class="status-dot live"></span><span id="sync-text">Connecting…</span></div>
+        <button id="avatar-button" class="avatar-button" aria-label="Open settings">SW</button>
+      </div>
     </header>
 
     <div id="connection-banner" class="connection-banner hidden"></div>
 
-    <main>
+    <main class="content">
       <section id="onboarding" class="onboarding hidden">
-        <div class="welcome-card">
-          <span class="kicker">ONE-STOP FPL ASSISTANT</span>
-          <h1>Make your team stronger every gameweek.</h1>
-          <p>Connect your FPL team once. After that the optimiser keeps your squad, budget, transfers, lineup, captaincy and chip plan together in one place.</p>
-          <div class="connect-row">
-            <input id="entry" inputmode="numeric" placeholder="Your FPL Team ID" aria-label="FPL Team ID">
-            <button id="import" class="primary">Connect my team</button>
+        <div class="setup-card">
+          <div class="setup-badge">ONE-TIME SETUP</div>
+          <h1>Connect your FPL team</h1>
+          <p>Your squad, bank, free transfers and chips will stay synced automatically after this.</p>
+          <div class="setup-row">
+            <input id="entry" inputmode="numeric" placeholder="FPL Team ID" aria-label="FPL Team ID">
+            <button id="import" class="btn primary">Connect Team</button>
           </div>
-          <button id="gw1-mode" class="text-button">No team yet? Build a new-season squad</button>
+          <button id="gw1-mode" class="link-button">No team yet? Build a new-season squad</button>
         </div>
       </section>
 
-      <section id="home-view" class="view hidden" data-view="home">
-        <div class="gameweek-hero">
-          <div>
-            <span class="kicker" id="hero-kicker">GAMEWEEK PLAN</span>
-            <h1 id="hero-title">Your team is ready.</h1>
-            <p id="hero-copy">One tap checks your squad, transfer options, captaincy and upcoming fixtures.</p>
+      <section class="view hidden" id="dashboard-view" data-view="dashboard">
+        <section class="manager-strip panel-purple">
+          <div class="manager-title">
+            <div class="team-shirt mini-shirt" id="manager-shirt"><span>FPL</span></div>
+            <div><span class="eyebrow">MY FPL TEAM</span><h1 id="manager-team">Your Team</h1><p id="manager-name">Connect your team to begin</p></div>
           </div>
-          <button id="optimise" class="optimise-button">
-            <span class="optimise-icon">✦</span>
-            <span><small>ONE TAP</small>Optimise My Team</span>
-          </button>
-        </div>
-
-        <div class="summary-strip">
-          <div class="summary-item"><span>Free transfers</span><strong id="summary-ft">—</strong></div>
-          <div class="summary-item"><span>Bank</span><strong id="summary-bank">—</strong></div>
-          <div class="summary-item"><span>Squad value</span><strong id="summary-value">—</strong></div>
-          <div class="summary-item"><span>Chips</span><strong id="summary-chips">—</strong></div>
-        </div>
+          <div class="manager-metrics">
+            <div><span>Overall Rank</span><strong id="metric-rank">—</strong><small id="metric-rank-note">Live</small></div>
+            <div><span>Total Points</span><strong id="metric-total">—</strong><small>Season</small></div>
+            <div><span>GW Points</span><strong id="metric-gwpoints">—</strong><small id="metric-gw-label">Current GW</small></div>
+            <div><span>Free Transfers</span><strong id="metric-ft">—</strong><small>Available</small></div>
+            <div><span>Bank</span><strong id="metric-bank">—</strong><small>To spend</small></div>
+          </div>
+          <button id="optimise" class="btn optimise-cta"><span>✦</span> Optimise Team</button>
+        </section>
 
         <div id="analysis-progress" class="analysis-progress hidden">
-          <div class="spinner"></div>
-          <div><strong id="analysis-title">Analysing your team…</strong><span id="analysis-copy">Checking the latest player data and your best options.</span></div>
+          <div class="spinner"></div><div><strong id="analysis-title">Analysing your team…</strong><span id="analysis-copy">Checking live data and the few players that could change your decision.</span></div>
         </div>
 
-        <section id="decision-panel" class="decision-panel empty-state">
-          <div class="decision-main">
-            <span class="section-label">RECOMMENDED MOVE</span>
-            <h2 id="decision-title">Tap “Optimise My Team” for your GW plan</h2>
-            <p id="decision-copy">We’ll check whether to transfer, roll, change your XI, switch captain or hold a chip.</p>
-            <div id="transfer-list" class="transfer-list"></div>
-          </div>
-          <div class="decision-score">
-            <span id="decision-badge" class="decision-badge">READY</span>
-            <strong id="gain-value">—</strong>
-            <span id="gain-label">5-GW gain</span>
-          </div>
-        </section>
+        <div class="dashboard-columns">
+          <div class="dashboard-left">
+            <section class="card recommendations-card">
+              <div class="card-head"><div><span class="eyebrow">OPTIMISER</span><h2>Recommended Moves</h2></div><button class="text-action" data-tab="transfers">View All →</button></div>
+              <div id="home-recommendations" class="recommendation-list"><div class="empty-compact">Run <b>Optimise Team</b> for a final transfer recommendation.</div></div>
+              <div id="home-gain" class="gain-box hidden"></div>
+            </section>
 
-        <div class="dashboard-grid">
-          <section class="panel captain-panel">
-            <div class="panel-heading"><div><span class="section-label">CAPTAINCY</span><h3>Your armband</h3></div><span id="captain-status" class="pill">Waiting</span></div>
-            <div class="captain-choice">
-              <div class="captain-avatar">C</div>
-              <div><strong id="captain-name">—</strong><span id="captain-points">Run the optimiser first</span></div>
-            </div>
-            <div class="vice-row"><span>Vice captain</span><strong id="vice-name">—</strong></div>
-          </section>
+            <section class="card captain-card">
+              <div class="card-head"><h3>Captaincy Recommendation</h3><span class="round-badge">C</span></div>
+              <div class="captain-line"><div class="player-orb" id="captain-orb">C</div><div><strong id="captain-name">—</strong><span id="captain-meta">Run optimiser for captaincy</span></div><div class="captain-proj"><span>Projected</span><strong id="captain-points">—</strong></div></div>
+            </section>
 
-          <section class="panel chip-panel">
-            <div class="panel-heading"><div><span class="section-label">CHIP WATCH</span><h3>Best opportunity</h3></div></div>
-            <div class="chip-focus"><strong id="chip-title">No scan yet</strong><span id="chip-copy">Chip timing updates with every optimisation.</span></div>
-            <div id="chip-badges" class="chip-badges"></div>
-          </section>
+            <section class="card captain-card vice-card">
+              <div class="card-head"><h3>Vice-Captain</h3><span class="round-badge vice">V</span></div>
+              <div class="captain-line"><div class="player-orb vice" id="vice-orb">V</div><div><strong id="vice-name">—</strong><span id="vice-meta">Backup captain</span></div><div class="captain-proj"><span>Projected</span><strong id="vice-points">—</strong></div></div>
+            </section>
+
+            <section class="card formation-card"><div><span class="formation-icon">▦</span><span>Best Formation</span></div><strong id="formation-value">—</strong><small>Most projected points this week</small></section>
+
+            <section class="card chip-watch-card">
+              <div class="card-head"><h3>Chip Watch</h3><button class="text-action" data-tab="tools">View plan →</button></div>
+              <div id="chip-grid" class="chip-grid"></div>
+            </section>
+          </div>
+
+          <div class="dashboard-center">
+            <section class="card pitch-card">
+              <div class="card-head pitch-head">
+                <div><span class="eyebrow">BEST XI</span><h2>My Team</h2></div>
+                <div class="segmented"><button class="seg active" data-team-view="pitch">Pitch View</button><button class="seg" data-team-view="list">List View</button></div>
+                <div class="gw-switch"><button id="gw-prev">‹</button><strong id="gw-label">GW—</strong><button id="gw-next">›</button></div>
+              </div>
+              <div id="pitch" class="pitch"><div class="pitch-placeholder">Connect your team to see the pitch</div></div>
+              <div id="bench" class="bench-strip"></div>
+              <div id="team-list-inline" class="team-list-inline hidden"></div>
+            </section>
+
+            <section class="card transfer-ideas-card">
+              <div class="card-head"><h3>Transfer Ideas</h3><button class="text-action" data-tab="transfers">View All →</button></div>
+              <div id="transfer-ideas" class="compact-list"><div class="empty-compact">Optimise to generate alternatives.</div></div>
+            </section>
+          </div>
+
+          <div class="dashboard-right">
+            <section class="card gameweek-card">
+              <div class="card-head"><div><span class="eyebrow">CURRENT</span><h2 id="gameweek-title">Gameweek</h2></div><button class="text-action" data-tab="fixtures">View Fixtures →</button></div>
+              <div class="gw-score-grid">
+                <div class="score-primary"><strong id="gw-score">—</strong><span>Points</span></div>
+                <div><span>Average</span><strong id="gw-average">—</strong></div>
+                <div><span>Highest</span><strong id="gw-highest">—</strong></div>
+                <div><span>GW Rank</span><strong id="gw-rank">—</strong></div>
+              </div>
+              <div id="history-chart" class="history-chart"></div>
+            </section>
+
+            <section class="card fixtures-card">
+              <div class="card-head"><h3>Upcoming Fixtures</h3><button class="text-action" data-tab="fixtures">View All →</button></div>
+              <div id="upcoming-fixtures" class="fixture-list"><div class="empty-compact">Loading fixtures…</div></div>
+            </section>
+
+            <section class="card next-checks-card">
+              <div class="card-head"><h3>Next Checks</h3><span class="check-icon">✓</span></div>
+              <div id="next-checks" class="checks-list"></div>
+            </section>
+          </div>
         </div>
+      </section>
 
-        <section class="panel lineup-panel">
-          <div class="panel-heading">
-            <div><span class="section-label">BEST XI</span><h3 id="lineup-title">Starting lineup</h3></div>
-            <div id="lineup-total" class="lineup-total">— pts</div>
-          </div>
-          <div id="pitch" class="pitch"><div class="pitch-placeholder">Optimise your team to build the best XI</div></div>
-          <div><span class="bench-label">BENCH ORDER</span><div id="bench" class="bench"></div></div>
+      <section class="view hidden" id="team-view" data-view="team">
+        <div class="page-header"><div><span class="eyebrow">MY TEAM</span><h1>Your 15-player squad</h1><p>Best XI, bench order, selling values and projected points in one place.</p></div><button class="btn primary page-optimise">✦ Optimise Team</button></div>
+        <div class="team-page-grid">
+          <section class="card pitch-card full-pitch"><div class="card-head"><h2>Best XI</h2><div class="segmented"><button class="seg active">Pitch View</button></div></div><div id="team-page-pitch" class="pitch large"></div><div id="team-page-bench" class="bench-strip"></div></section>
+          <section class="card squad-side"><div class="card-head"><h2>Squad Overview</h2><span id="squad-overview-count">15 players</span></div><div id="squad-list" class="squad-list"></div></section>
+        </div>
+      </section>
+
+      <section class="view hidden" id="transfers-view" data-view="transfers">
+        <div class="page-header"><div><span class="eyebrow">TRANSFER CENTRE</span><h1>Improve the squad</h1><p>See the best move, alternatives, budget impact and five-gameweek gain.</p></div><button class="btn primary page-optimise">✦ Recalculate</button></div>
+        <section id="transfer-primary" class="card transfer-hero"><div class="empty-compact">Run Optimise Team to generate a final move.</div></section>
+        <div class="two-col">
+          <section class="card"><div class="card-head"><h2>Alternative Moves</h2></div><div id="transfer-alternatives" class="transfer-alt-list"></div></section>
+          <section class="card"><div class="card-head"><h2>Your Transfer Position</h2></div><div id="transfer-position" class="detail-list"></div></section>
+        </div>
+      </section>
+
+      <section class="view hidden" id="fixtures-view" data-view="fixtures">
+        <div class="page-header"><div><span class="eyebrow">PLAN AHEAD</span><h1>5-Gameweek Planner</h1><p>Fixture difficulty, captaincy and transfer timing beyond this weekend.</p></div></div>
+        <section class="card"><div class="card-head"><h2 id="planner-range">Next 5 Gameweeks</h2></div><div id="planner-table" class="planner-table"></div></section>
+        <div class="two-col"><section class="card"><div class="card-head"><h2>Premier League Fixtures</h2></div><div id="fixture-browser" class="fixture-browser"></div></section><section class="card"><div class="card-head"><h2>Long-Term View</h2></div><div id="long-term-view" class="long-term-view"></div></section></div>
+      </section>
+
+      <section class="view hidden" id="players-view" data-view="players">
+        <div class="page-header"><div><span class="eyebrow">PLAYER DATABASE</span><h1>Find your next player</h1><p>Search, filter and compare the live FPL player pool.</p></div></div>
+        <section class="card player-browser-card">
+          <div class="player-toolbar"><input id="player-search" placeholder="Search players or teams…"><div class="filter-tabs" id="position-filters"><button class="filter active" data-pos="ALL">All</button><button class="filter" data-pos="GK">Goalkeepers</button><button class="filter" data-pos="DEF">Defenders</button><button class="filter" data-pos="MID">Midfielders</button><button class="filter" data-pos="FWD">Forwards</button></div></div>
+          <div id="player-table" class="player-table"></div>
         </section>
       </section>
 
-      <section id="squad-view" class="view hidden" data-view="squad">
-        <div class="page-heading"><span class="kicker">MY TEAM</span><h1>Your 15-player squad</h1><p>Current price, selling value and projected next-gameweek output.</p></div>
-        <div id="squad-list" class="player-list"></div>
+      <section class="view hidden" id="stats-view" data-view="stats">
+        <div class="page-header"><div><span class="eyebrow">STATISTICS</span><h1>Your season at a glance</h1><p>Gameweek scores, rank, transfers and squad value.</p></div></div>
+        <div id="stats-grid" class="stats-grid"></div>
+        <section class="card"><div class="card-head"><h2>Gameweek History</h2></div><div id="stats-history" class="history-table"></div></section>
       </section>
 
-      <section id="transfers-view" class="view hidden" data-view="transfers">
-        <div class="page-heading"><span class="kicker">TRANSFER CENTRE</span><h1>Improve the squad, not just one player.</h1><p>The optimiser weighs your bank, selling prices, free transfers and the next five gameweeks.</p></div>
-        <div id="transfer-detail" class="panel"><p class="muted">Run Optimise My Team to generate your transfer plan.</p></div>
-      </section>
-
-      <section id="planner-view" class="view hidden" data-view="planner">
-        <div class="page-heading"><span class="kicker">5-GW PLANNER</span><h1>Look beyond this weekend.</h1><p>Upcoming lineup strength, captaincy and chip opportunities.</p></div>
-        <div id="planner-list" class="planner-list"></div>
+      <section class="view hidden" id="tools-view" data-view="tools">
+        <div class="page-header"><div><span class="eyebrow">TOOLS</span><h1>Plan the bigger decisions</h1><p>Chip strategy and new-season squad building live here.</p></div></div>
+        <div class="two-col tools-grid">
+          <section class="card"><div class="card-head"><h2>Chip Strategy</h2></div><div id="tools-chips" class="chip-tools"></div></section>
+          <section class="card gw1-builder"><div class="card-head"><div><span class="eyebrow">NEW SEASON</span><h2>GW1 Squad Builder</h2></div><span class="tool-badge">£100.0m</span></div><p>Build a legal 15-player squad from scratch using live prices and five-gameweek projections.</p><div class="builder-options"><button class="filter active" data-builder-mode="balanced">Balanced</button><button class="filter" data-builder-mode="aggressive">Aggressive</button><button class="filter" data-builder-mode="safe">Safe</button></div><button id="build-new-squad" class="btn primary full">Build Best New Squad</button><div id="builder-output" class="builder-output"></div></section>
+        </div>
       </section>
     </main>
-
-    <nav class="bottom-nav" aria-label="Primary navigation">
-      <button class="nav-item active" data-tab="home"><span>⌂</span>Home</button>
-      <button class="nav-item" data-tab="squad"><span>♟</span>Squad</button>
-      <button class="nav-item" data-tab="transfers"><span>⇄</span>Transfers</button>
-      <button class="nav-item" data-tab="planner"><span>▦</span>Planner</button>
-    </nav>
   </div>
 
-  <div id="settings-backdrop" class="drawer-backdrop hidden"></div>
-  <aside id="settings-drawer" class="settings-drawer" aria-hidden="true">
-    <div class="drawer-head"><div><span class="section-label">SETTINGS</span><h2>App connection</h2></div><button id="settings-close" class="icon-button">✕</button></div>
-    <p class="muted">These connection details stay out of the main app once set up.</p>
-    <label class="field-label">FPL Team ID<input id="settings-entry" inputmode="numeric" placeholder="Team ID"></label>
-    <button id="settings-import" class="primary full">Reconnect team</button>
-    <div class="setting-divider"></div>
-    <div class="setting-status"><span>Player research</span><strong id="research-status">Not connected</strong></div>
-    <label class="field-label">Research access key<input id="research-session" type="password" autocomplete="off" placeholder="rs_…"></label>
-    <div class="settings-actions"><button id="save-research" class="secondary">Save access</button><button id="clear-research" class="ghost">Clear</button></div>
-    <p class="tiny muted">This key is stored only in this browser. The normal app hides it after setup.</p>
-    <div class="setting-divider"></div>
-    <button id="refresh-data" class="ghost full">Refresh live FPL data</button>
-    <p id="technical-status" class="tiny muted">Connecting…</p>
-  </aside>
+  <nav class="mobile-nav" aria-label="Mobile navigation">
+    <button class="mobile-nav-item active" data-tab="dashboard"><span>⌂</span>Home</button>
+    <button class="mobile-nav-item" data-tab="team"><span>♟</span>Team</button>
+    <button class="mobile-nav-item" data-tab="transfers"><span>⇄</span>Transfers</button>
+    <button class="mobile-nav-item" data-tab="fixtures"><span>▦</span>Planner</button>
+    <button class="mobile-nav-item" data-tab="tools"><span>•••</span>More</button>
+  </nav>
+</div>
 
-  <div id="toast" class="toast hidden"></div>
-  <script type="module" src="app.js"></script>
+<div id="settings-backdrop" class="drawer-backdrop hidden"></div>
+<aside id="settings-drawer" class="settings-drawer" aria-hidden="true">
+  <div class="drawer-head"><div><span class="eyebrow">SETTINGS</span><h2>FPL Optimiser</h2></div><button id="settings-close" class="icon-button">✕</button></div>
+  <section class="settings-section"><h3>Your team</h3><label>FPL Team ID<input id="settings-entry" inputmode="numeric" placeholder="Team ID"></label><button id="settings-import" class="btn primary full">Reconnect Team</button></section>
+  <section class="settings-section"><div class="setting-row"><div><h3>Player Intelligence</h3><p>Automatic background research for new, injured or uncertain players.</p></div><strong id="research-status">Not connected</strong></div><details class="advanced"><summary>Advanced connection</summary><label>Research access key<input id="research-session" type="password" autocomplete="off" placeholder="rs_…"></label><div class="settings-actions"><button id="save-research" class="btn secondary">Save</button><button id="clear-research" class="btn ghost">Clear</button></div></details></section>
+  <section class="settings-section"><h3>Live data</h3><button id="refresh-data" class="btn ghost full">Refresh FPL Data</button><p id="technical-status" class="tiny">Connecting…</p></section>
+</aside>
+<div id="toast" class="toast hidden"></div>
+<script type="module" src="app.js"></script>
 </body>
 </html>
